@@ -1,82 +1,71 @@
-import path from 'node:path';
-
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ClsModule } from 'nestjs-cls';
-import {
-  AcceptLanguageResolver,
-  HeaderResolver,
-  I18nModule,
-  QueryResolver,
-} from 'nestjs-i18n';
-import { DataSource } from 'typeorm';
-import { addTransactionalDataSource } from 'typeorm-transactional';
-
-import { AuthModule } from './modules/auth/auth.module.ts';
-import { HealthCheckerModule } from './modules/health-checker/health-checker.module.ts';
-import { PostModule } from './modules/post/post.module.ts';
-import { UserModule } from './modules/user/user.module.ts';
-import { ApiConfigService } from './shared/services/api-config.service.ts';
-import { SharedModule } from './shared/shared.module.ts';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { validationSchema, validationOptions } from './config/validation.config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { HealthModule } from './modules/health/health.module';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { ExceptionInterceptor } from './common/interceptors/exception.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { configurations } from './config/configurations';
+import { TicketsModule } from './modules/tickets/tickets.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { NotesModule } from './modules/notes/notes.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthInterceptor } from './common/interceptors/auth.interceptor';
+import { TokenService } from './common/services/token.service';
+import { FilesModule } from './modules/files/files.module';
 
 @Module({
   imports: [
-    AuthModule,
-    UserModule,
-    PostModule,
-    ClsModule.forRoot({
-      global: true,
-      middleware: {
-        mount: true,
-      },
-    }),
-    ThrottlerModule.forRootAsync({
-      imports: [SharedModule],
-      useFactory: (configService: ApiConfigService) => ({
-        throttlers: [configService.throttlerConfigs],
-      }),
-      inject: [ApiConfigService],
-    }),
     ConfigModule.forRoot({
+      validationSchema,
+      validationOptions,
+      load: configurations,
       isGlobal: true,
-      envFilePath: '.env',
+      cache: true,
+      expandVariables: true,
+      envFilePath: process.env.NODE_ENV === 'development' ? '.env.dev' : '.env',
     }),
-    TypeOrmModule.forRootAsync({
-      imports: [SharedModule],
-      useFactory: (configService: ApiConfigService) =>
-        configService.postgresConfig,
-      inject: [ApiConfigService],
-      dataSourceFactory: (options) => {
-        if (!options) {
-          throw new Error('Invalid options passed');
-        }
-
-        return Promise.resolve(
-          addTransactionalDataSource(new DataSource(options)),
-        );
-      },
-    }),
-    // eslint-disable-next-line canonical/id-match
-    I18nModule.forRootAsync({
-      useFactory: (configService: ApiConfigService) => ({
-        fallbackLanguage: configService.fallbackLanguage,
-        loaderOptions: {
-          path: path.join(import.meta.dirname, 'i18n/'),
-          watch: configService.isDevelopment,
-        },
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '60m' },
       }),
-      resolvers: [
-        { use: QueryResolver, options: ['lang'] },
-        AcceptLanguageResolver,
-        new HeaderResolver(['x-lang']),
-      ],
-      imports: [SharedModule],
-      inject: [ApiConfigService],
+      inject: [ConfigService],
     }),
-    HealthCheckerModule,
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('mongo.uri'),
+        dbName: configService.get<string>('mongo.dbName'),
+      }),
+      inject: [ConfigService],
+    }),
+    HealthModule,
+    TicketsModule,
+    ActivitiesModule,
+    TasksModule,
+    NotesModule,
+    CustomersModule,
+    FilesModule,
   ],
-  providers: [],
+  providers: [
+    TokenService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ExceptionInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuthInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}
