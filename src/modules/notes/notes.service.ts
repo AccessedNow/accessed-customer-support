@@ -4,7 +4,6 @@ import { Note } from './schemas/note.schema';
 import { NotesRepositoryInterface } from 'src/core/repositories/interfaces/notes.interface';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { QueryNoteDto } from './dto/query-note.dto';
 import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
@@ -32,7 +31,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     super(notesRepository, httpService, configService, new Logger(NotesService.name));
   }
 
-  async findAll({ ticketId, query }: { ticketId: string; query: QueryNoteDto }) {
+  async findAll({ ticketId, query }: { ticketId: string; query: any }) {
     const filterMap: FilterMap = {
       ticket: 'ticket',
       type: 'type',

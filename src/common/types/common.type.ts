@@ -4,16 +4,27 @@ export enum SORT_TYPE {
 }
 
 export interface FindAllResponse<T> {
-  docs: T[];
-  totalDocs: number;
-  limit: number;
+  content: T[];
+  pageable: {
+    sort: {
+      unsorted: boolean;
+      sort: boolean;
+      empty: boolean;
+    };
+    pageSize: number;
+    pageNumber: number;
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  last: boolean;
   totalPages: number;
-  page: number;
-  pagingCounter: number;
-  hasPrevPage: boolean;
-  hasNextPage: boolean;
-  prevPage: number | null;
-  nextPage: number | null;
+  totalElements: number;
+  first: boolean;
+  numberOfElements: number;
+  size: number;
+  number: number;
+  empty: boolean;
 }
 
 export type SortParams = { sort_by: string; sort_type: SORT_TYPE };

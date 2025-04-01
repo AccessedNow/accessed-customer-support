@@ -2,7 +2,6 @@ import { Inject, Injectable, NotFoundException, BadRequestException, Logger } fr
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Task } from './schemas/task.schema';
 import { TasksRepositoryInterface } from 'src/core/repositories/interfaces/tasks.interface';
-import { QueryTaskDto } from './dto/query-task.dto';
 import { FindAllResponse } from 'src/common/types/common.type';
 import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -34,10 +33,10 @@ export class TasksService extends BaseServiceAbstract<Task> {
 
   async findAll({
     ticketId,
-    queryTaskDto,
+    query,
   }: {
     ticketId: string;
-    queryTaskDto: QueryTaskDto;
+    query: any;
   }): Promise<FindAllResponse<Task>> {
     const filterMap: FilterMap = {
       title: 'title',
@@ -45,8 +44,8 @@ export class TasksService extends BaseServiceAbstract<Task> {
       priority: 'priority',
     };
 
-    const conditions = QueryBuilderUtil.buildFilterConditions(queryTaskDto, filterMap);
-    const options = QueryBuilderUtil.buildQueryOptions(queryTaskDto);
+    const conditions = QueryBuilderUtil.buildFilterConditions(query, filterMap);
+    const options = QueryBuilderUtil.buildQueryOptions(query);
 
     return await this.tasksRepository.findAll({ ...conditions, ticket: ticketId }, options);
   }

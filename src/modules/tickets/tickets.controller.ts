@@ -8,16 +8,21 @@ import {
   Patch,
   Version,
   Delete,
+  Query,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
-import { QueryTicketDto } from './dto/query-ticket.dto';
 import { User } from 'src/common/decorators/user.decorator';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { PageSortDto } from 'src/common/utils/page-sort.dto';
+import { FilterTicketDto } from './dto/filter-ticket.dto';
+import { RequirePrivileges } from 'src/common/decorators/require-privileges.decorator';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
 @ApiTags('tickets')
 @Controller('tickets')
+@Roles('ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN')
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
@@ -27,6 +32,7 @@ export class TicketsController {
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Ticket has been successfully created' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Invalid customer token' })
+  @RequirePrivileges('ADD_TICKETS')
   @Version('1')
   createTicket(@Body() createTicketDto: CreateTicketDto, @User() user: any) {
     createTicketDto.customerId = user.id;
@@ -35,11 +41,14 @@ export class TicketsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all tickets with filtering and pagination' })
-  @ApiBody({ type: QueryTicketDto })
+  @ApiQuery({ type: PageSortDto })
+  @ApiBody({ type: FilterTicketDto })
   @ApiResponse({ status: HttpStatus.OK, description: 'Return all tickets matching the criteria' })
+  @RequirePrivileges('VIEW_TICKETS')
   @Version('1')
-  getTickets(@Body() queryTicketDto: QueryTicketDto) {
-    return this.ticketsService.findAll(queryTicketDto);
+  getTickets(@Body() filterTicketDto: FilterTicketDto, @Query() pageSortDto: PageSortDto) {
+    const query = { ...filterTicketDto, ...pageSortDto };
+    return this.ticketsService.findAll(query);
   }
 
   @Get(':id')
@@ -47,6 +56,7 @@ export class TicketsController {
   @ApiParam({ name: 'id', description: 'Ticket ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Return the ticket' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Ticket not found' })
+  @RequirePrivileges('VIEW_TICKETS')
   @Version('1')
   getTicket(@Param('id') id: string) {
     return this.ticketsService.findOneById(id);
@@ -60,6 +70,7 @@ export class TicketsController {
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Ticket not found' })
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Invalid user token' })
+  @RequirePrivileges('UPDATE_TICKETS')
   @Version('1')
   updateTicket(
     @Param('id') id: string,
@@ -79,6 +90,7 @@ export class TicketsController {
   @ApiParam({ name: 'id', description: 'Ticket ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Ticket has been successfully deleted' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Ticket not found' })
+  @RequirePrivileges('DELETE_TICKETS')
   @Version('1')
   deleteTicket(@Param('id') id: string) {
     return this.ticketsService.softDelete(id);

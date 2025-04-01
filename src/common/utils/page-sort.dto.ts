@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class PageSortDto {
   @ApiProperty({
@@ -7,7 +7,7 @@ export class PageSortDto {
     example: '1',
     required: false,
   })
-  @IsNumber()
+  @IsNumberString()
   @IsOptional()
   page?: number;
 
@@ -16,9 +16,9 @@ export class PageSortDto {
     example: '10',
     required: false,
   })
-  @IsNumber()
+  @IsNumberString()
   @IsOptional()
-  limit?: number;
+  size?: number;
 
   @ApiProperty({
     description: 'Sort field',
@@ -27,7 +27,7 @@ export class PageSortDto {
   })
   @IsString()
   @IsOptional()
-  sort?: string;
+  sortBy?: string;
 
   @ApiProperty({
     description: 'Sort order (asc or desc)',
@@ -37,4 +37,13 @@ export class PageSortDto {
   @IsString()
   @IsOptional()
   sequence?: string;
+
+  @ApiProperty({
+    description: 'Search term for subject or message',
+    example: 'defective',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  query?: string;
 }

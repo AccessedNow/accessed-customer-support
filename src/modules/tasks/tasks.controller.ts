@@ -1,11 +1,12 @@
-import { Controller, Get, Param, Delete, Body, Patch, Post, Version } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
+import { Controller, Get, Param, Delete, Body, Patch, Post, Version, Query } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
-import { QueryTaskDto } from './dto/query-task.dto';
+import { FilterTaskDto } from './dto/filter-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { User } from 'src/common/decorators/user.decorator';
 import { ParseMongoIdPipe } from 'src/common/pipes/parse-mongo-id.pipe';
+import { PageSortDto } from 'src/common/utils/page-sort.dto';
 
 @ApiTags('tickets/:ticketId/tasks')
 @Controller('tickets/:ticketId/tasks')
@@ -15,16 +16,19 @@ export class TasksController {
   @Get()
   @ApiOperation({ summary: 'Get all tasks for a ticket' })
   @ApiParam({ name: 'ticketId', description: 'Ticket ID' })
-  @ApiBody({ type: QueryTaskDto })
+  @ApiQuery({ type: PageSortDto })
+  @ApiBody({ type: FilterTaskDto })
   @ApiResponse({ status: 200, description: 'Return all tasks for the ticket' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
   @Version('1')
   getTasks(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
-    @Body() queryTaskDto: QueryTaskDto,
+    @Query() pageSortDto: PageSortDto,
+    @Body() filterTaskDto: FilterTaskDto,
   ) {
-    return this.tasksService.findAll({ ticketId, queryTaskDto });
+    const query = { ...pageSortDto, ...filterTaskDto };
+    return this.tasksService.findAll({ ticketId, query });
   }
 
   @Get(':id')

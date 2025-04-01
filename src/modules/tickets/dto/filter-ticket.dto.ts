@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { Priority, TicketStatus, TicketType } from 'src/common/enums/ticket.enum';
-import { PageSortDto } from 'src/common/utils/page-sort.dto';
 
-export class QueryTicketDto extends PageSortDto {
+export class FilterTicketDto {
   @ApiProperty({
     description: 'Filter by ticket status',
     enum: TicketStatus,
@@ -48,13 +47,4 @@ export class QueryTicketDto extends PageSortDto {
   @IsString()
   @IsOptional()
   customerId?: string;
-
-  @ApiProperty({
-    description: 'Search term for subject or message',
-    example: 'defective',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  search?: string;
 }

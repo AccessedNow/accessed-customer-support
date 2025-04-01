@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString, IsEnum } from 'class-validator';
 import { TaskStatus, TaskPriority } from 'src/common/enums/task.enum';
-import { PageSortDto } from 'src/common/utils/page-sort.dto';
 
-export class QueryTaskDto extends PageSortDto {
+export class FilterTaskDto {
   @ApiProperty({
     description: 'Filter tasks by status',
     enum: TaskStatus,

@@ -35,18 +35,33 @@ export abstract class BaseRepositoryAbstract<T extends BaseSchema>
       this.model.countDocuments({ ...condition, deletedAt: null }),
       this.model.find({ ...condition, deletedAt: null }, options?.projection, options),
     ]);
+
+    const page = options?.page || 1;
+    const limit = options?.limit || 10;
+    const totalPages = Math.ceil(count / limit);
+
     return {
-      docs: items,
-      totalDocs: count,
-      limit: options?.limit || 10,
-      totalPages: Math.ceil(count / (options?.limit || 10)),
-      page: options?.page || 1,
-      pagingCounter: ((options?.page || 1) - 1) * (options?.limit || 10) + 1,
-      hasPrevPage: (options?.page || 1) > 1,
-      hasNextPage: (options?.page || 1) * (options?.limit || 10) < count,
-      prevPage: (options?.page || 1) > 1 ? (options?.page || 1) - 1 : null,
-      nextPage:
-        (options?.page || 1) * (options?.limit || 10) < count ? (options?.page || 1) + 1 : null,
+      content: items,
+      pageable: {
+        sort: {
+          unsorted: false,
+          sort: true,
+          empty: false,
+        },
+        pageSize: limit,
+        pageNumber: page,
+        offset: (page - 1) * limit,
+        paged: items.length > 0,
+        unpaged: items.length === 0,
+      },
+      last: page >= totalPages,
+      totalPages: totalPages,
+      totalElements: count,
+      first: page === 1,
+      numberOfElements: items.length,
+      size: limit,
+      number: page,
+      empty: items.length === 0,
     };
   }
 
