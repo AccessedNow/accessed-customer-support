@@ -4,11 +4,14 @@ import {
   ExecutionContext,
   CallHandler,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { TokenService } from '../services/token.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { REQUIRED_PRIVILEGES_KEY } from '../decorators/require-privileges.decorator';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
 export class AuthInterceptor implements NestInterceptor {
@@ -41,7 +44,47 @@ export class AuthInterceptor implements NestInterceptor {
       throw new UnauthorizedException('Invalid token payload');
     }
 
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]) || ['ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN'];
+
+    if (requiredRoles.length && !this.matchRoles(requiredRoles, user)) {
+      throw new ForbiddenException(
+        `User does not have the required role(s): ${requiredRoles.join(', ')}`,
+      );
+    }
+
+    const requiredPrivileges = this.reflector.getAllAndOverride<string[]>(REQUIRED_PRIVILEGES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (
+      requiredPrivileges &&
+      requiredPrivileges.length &&
+      !this.matchPrivileges(requiredPrivileges, user)
+    ) {
+      throw new ForbiddenException(
+        `User does not have the required privilege(s): ${requiredPrivileges.join(', ')}`,
+      );
+    }
+
     request.user = user;
     return next.handle();
+  }
+
+  private matchRoles(requiredRoles: string[], user: any): boolean {
+    if (!user.roles || !Array.isArray(user.roles)) {
+      return false;
+    }
+    return requiredRoles.some((role) => user.roles.includes(role));
+  }
+
+  private matchPrivileges(requiredPrivileges: string[], user: any): boolean {
+    if (!user.privileges || !Array.isArray(user.privileges)) {
+      return false;
+    }
+    return requiredPrivileges.every((privilege) => user.privileges.includes(privilege));
   }
 }
