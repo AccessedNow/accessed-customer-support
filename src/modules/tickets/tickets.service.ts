@@ -4,7 +4,6 @@ import { Ticket } from './schemas/ticket.schema';
 import { TicketsRepositoryInterface } from 'src/core/repositories/interfaces/tickets.interface';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindAllResponse } from 'src/common/types/common.type';
-import { QueryTicketDto } from './dto/query-ticket.dto';
 import { ActivitiesService } from '../activities/activities.service';
 import { TicketStatus, Priority, TICKET_TYPE_PREFIX_MAP } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
@@ -98,7 +97,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     return {};
   }
 
-  async findAll(query: QueryTicketDto): Promise<FindAllResponse<Ticket>> {
+  async findAll(query: any): Promise<FindAllResponse<Ticket>> {
     const filterMap: FilterMap = {
       status: 'status',
       ticketType: 'ticketType',

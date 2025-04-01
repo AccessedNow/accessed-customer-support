@@ -8,13 +8,15 @@ import {
   Patch,
   Version,
   Delete,
+  Query,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
-import { QueryTicketDto } from './dto/query-ticket.dto';
 import { User } from 'src/common/decorators/user.decorator';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { PageSortDto } from 'src/common/utils/page-sort.dto';
+import { FilterTicketDto } from './dto/filter-ticket.dto';
 
 @ApiTags('tickets')
 @Controller('tickets')
@@ -35,11 +37,13 @@ export class TicketsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all tickets with filtering and pagination' })
-  @ApiBody({ type: QueryTicketDto })
+  @ApiQuery({ type: PageSortDto })
+  @ApiBody({ type: FilterTicketDto })
   @ApiResponse({ status: HttpStatus.OK, description: 'Return all tickets matching the criteria' })
   @Version('1')
-  getTickets(@Body() queryTicketDto: QueryTicketDto) {
-    return this.ticketsService.findAll(queryTicketDto);
+  getTickets(@Body() filterTicketDto: FilterTicketDto, @Query() pageSortDto: PageSortDto) {
+    const query = { ...filterTicketDto, ...pageSortDto };
+    return this.ticketsService.findAll(query);
   }
 
   @Get(':id')

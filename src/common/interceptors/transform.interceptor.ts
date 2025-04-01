@@ -8,19 +8,6 @@ export class TransformInterceptor<T> implements NestInterceptor<T, ResponseForma
   intercept(context: ExecutionContext, next: CallHandler): Observable<ResponseFormat<T>> {
     return next.handle().pipe(
       map((data) => {
-        // If data has docs property, convert it to content
-        if (data && typeof data === 'object' && 'docs' in data) {
-          const { docs, ...rest } = data;
-          return {
-            data: {
-              ...rest,
-              content: docs,
-            },
-            code: 200,
-            message: 'Success',
-          };
-        }
-
         return {
           data,
           code: 200,

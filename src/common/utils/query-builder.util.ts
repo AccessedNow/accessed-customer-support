@@ -13,11 +13,11 @@ export class QueryBuilderUtil {
       }
     });
 
-    if (query.search) {
+    if (query.query) {
       conditions.$or = [
-        { subject: { $regex: query.search, $options: 'i' } },
-        { message: { $regex: query.search, $options: 'i' } },
-        { title: { $regex: query.search, $options: 'i' } },
+        { subject: { $regex: query.query, $options: 'i' } },
+        { message: { $regex: query.query, $options: 'i' } },
+        { title: { $regex: query.query, $options: 'i' } },
       ];
     }
 
@@ -26,14 +26,14 @@ export class QueryBuilderUtil {
 
   static buildQueryOptions(query: Record<string, any>): Record<string, any> {
     const page = parseInt(query.page) || 1;
-    const limit = parseInt(query.limit) || 10;
+    const limit = parseInt(query.size) || 10;
     const skip = (page - 1) * limit;
 
     return {
       page,
       limit,
       skip,
-      sort: { [query.sort || 'createdAt']: query.sequence === 'asc' ? 1 : -1 },
+      sort: { [query.sortBy || 'createdAt']: query.sequence === 'asc' ? 1 : -1 },
       lean: true,
     };
   }
