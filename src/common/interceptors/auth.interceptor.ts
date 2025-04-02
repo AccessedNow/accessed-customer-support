@@ -38,7 +38,6 @@ export class AuthInterceptor implements NestInterceptor {
     }
 
     const token = authHeader.split(' ')[1];
-
     const user = this.tokenService.decodeToken(token);
     if (!user) {
       throw new UnauthorizedException('Invalid token payload');
@@ -47,7 +46,7 @@ export class AuthInterceptor implements NestInterceptor {
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
-    ]) || ['ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN'];
+    ]) || ['ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN', 'ROLE_ADMIN'];
 
     if (requiredRoles.length && !this.matchRoles(requiredRoles, user)) {
       throw new ForbiddenException(

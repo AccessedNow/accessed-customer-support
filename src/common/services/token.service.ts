@@ -24,18 +24,13 @@ export class TokenService {
 
       const roles = userInfo.roles || [];
       const privileges = [];
-      let isCustomerSupport = false;
-      let isCustomerSupportAdmin = false;
 
       roles.forEach((role) => {
-        if (role.name === 'ROLE_CUSTOMER_SUPPORT' || role.name === 'ROLE_CUSTOMER_SUPPORT_ADMIN') {
-          if (role.name === 'ROLE_CUSTOMER_SUPPORT') {
-            isCustomerSupport = true;
-          }
-          if (role.name === 'ROLE_CUSTOMER_SUPPORT_ADMIN') {
-            isCustomerSupportAdmin = true;
-          }
-
+        if (
+          role.name === 'ROLE_CUSTOMER_SUPPORT' ||
+          role.name === 'ROLE_CUSTOMER_SUPPORT_ADMIN' ||
+          role.name === 'ROLE_ADMIN'
+        ) {
           if (role.privileges && Array.isArray(role.privileges)) {
             role.privileges.forEach((privilege) => {
               if (!privileges.includes(privilege.name)) {
@@ -53,8 +48,6 @@ export class TokenService {
         username: userInfo.username,
         roles: roles.map((r) => r.name),
         privileges,
-        isCustomerSupport,
-        isCustomerSupportAdmin,
       };
 
       return customer;

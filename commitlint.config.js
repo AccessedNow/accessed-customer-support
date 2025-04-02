@@ -7,6 +7,7 @@ module.exports = {
       [
         'feat',
         'fix',
+        'update',
         'improve',
         'refactor',
         'docs',
