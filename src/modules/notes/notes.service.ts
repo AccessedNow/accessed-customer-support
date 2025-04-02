@@ -250,12 +250,13 @@ export class NotesService extends BaseServiceAbstract<Note> {
   }
 
   async delete({ ticketId, id, user }: { ticketId: string; id: string; user: any }) {
+    console.log('delete note', ticketId, id);
     const note = await this.notesRepository.findOneByCondition({
       _id: id,
-      ticket: ticketId,
+      ticket: new Types.ObjectId(ticketId),
     });
-    const deletedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
     if (!note) throw new NotFoundException('Note not found');
+    const deletedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
     if (note.createdBy.id.toString() !== deletedBy._id.toString())
       throw new BadRequestException('You can only delete your own notes');
 

@@ -272,6 +272,10 @@ export class FilesService {
   }
 
   async deleteFile(fileId: string) {
-    return this.filesRepository.permanentlyDelete(fileId);
+    const file = await this.filesRepository.findOneByCondition({ fileId });
+    if (!file) {
+      throw new BadRequestException('File not found');
+    }
+    return this.filesRepository.permanentlyDelete(file._id.toString());
   }
 }

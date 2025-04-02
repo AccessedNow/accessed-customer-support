@@ -11,7 +11,6 @@ export function setupSwagger(
     .setTitle('Accessed Customer Support API')
     .setDescription('API documentation for Accessed Customer Support')
     .setVersion(apiVersion.replace('v', ''))
-    .addTag('users', 'User management endpoints')
     .addTag('health', 'Health check endpoints')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .build();

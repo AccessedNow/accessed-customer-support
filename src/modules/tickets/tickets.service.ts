@@ -229,8 +229,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
     ticket.status = TicketStatus.CLOSED;
-
-    return await this.ticketsRepository.update(id, ticket);
+    await this.ticketsRepository.update(id, ticket);
+    return {
+      success: true,
+      message: `Ticket ${ticket.ticketId} has been deleted`,
+    };
   }
 
   private async createFileAddedActivity(ticketId: string, fileCount: number, createdBy: Employee) {

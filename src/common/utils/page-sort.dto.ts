@@ -40,7 +40,7 @@ export class PageSortDto {
 
   @ApiProperty({
     description: 'Search term for subject or message',
-    example: 'defective',
+    example: '',
     required: false,
   })
   @IsString()
