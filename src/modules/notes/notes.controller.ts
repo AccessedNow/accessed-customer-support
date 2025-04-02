@@ -11,7 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBody, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { NotesService } from './notes.service';
 import { FilterNoteDto } from './dto/filter-note.dto';
 import { ParseMongoIdPipe } from 'src/common/pipes/parse-mongo-id.pipe';

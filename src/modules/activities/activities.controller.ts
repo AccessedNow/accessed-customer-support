@@ -1,5 +1,5 @@
 import { Controller, Query, Get, HttpStatus, Version, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { QueryActivityDto } from './dto/query-activity.dto';
 import { ParseMongoIdPipe } from 'src/common/pipes/parse-mongo-id.pipe';
