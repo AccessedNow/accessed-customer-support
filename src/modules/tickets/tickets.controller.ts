@@ -25,7 +25,7 @@ import { ApiAuth } from 'src/common/decorators/swagger.decorator';
 
 @ApiTags('Tickets Management')
 @Controller('tickets')
-@Roles('ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN')
+@Roles('ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN', 'ROLE_ADMIN')
 @ApiAuth()
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
