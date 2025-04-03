@@ -256,7 +256,7 @@ export class TasksController {
         value: {
           title: 'Configure Email Server',
           description: 'Set up and configure email server for new account',
-          status: 'OPEN',
+          status: 'PENDING',
           priority: 'HIGH',
           assignee: '67ebca9e8c1373deda961688',
           dueDate: '2025-04-02T11:14:39.070Z',

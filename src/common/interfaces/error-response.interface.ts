@@ -1,6 +1,7 @@
 export interface ErrorData {
   code: number;
   message: string;
+  details: any[];
   stack?: string;
 }
 

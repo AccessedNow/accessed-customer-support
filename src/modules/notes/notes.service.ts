@@ -8,7 +8,7 @@ import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 import { ActivitiesService } from '../activities/activities.service';
-import { ActivityType } from '../activities/schemas/activity.schema';
+import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { Types } from 'mongoose';
 import { FilesService } from '../files/files.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -120,6 +120,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
       metadata: {
         noteId: note._id,
         isPrivate: createNoteDto.isPrivate,
+        logType: ActivityLogType.NOTE_CREATED,
       },
     });
     if (createNoteDto.files && createNoteDto.files.length > 0) {
@@ -224,6 +225,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     }
 
     let activityType = ActivityType.NOTE_UPDATED;
+    let activityLogType = ActivityLogType.NOTE_UPDATED;
     let description = `Note updated for ticket ${ticketId}`;
 
     await this.activitiesService.create({
@@ -238,6 +240,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
       metadata: {
         noteId: id,
         isPrivate: updateData.isPrivate !== undefined ? updateData.isPrivate : note.isPrivate,
+        logType: activityLogType,
         changes: changes,
         ...(updateData.metadataChanges || {}),
       },
@@ -273,6 +276,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
       ticket: ticketId,
       metadata: {
         noteId: id,
+        logType: ActivityLogType.NOTE_DELETED,
       },
     });
 

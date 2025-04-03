@@ -46,10 +46,30 @@ async function bootstrap() {
       transform: true,
       forbidNonWhitelisted: true,
       exceptionFactory: (errors) => {
-        const formattedErrors = errors.reduce((acc, error) => {
-          acc[error.property] = Object.values(error.constraints || {});
-          return acc;
-        }, {});
+        console.log('Validation errors:', errors); // Log the validation errors for debugging
+        // Validation errors: [
+        //   ValidationError {
+        //     target: CreateTaskDto {
+        //       title: 'Configure Email Server',
+        //       description: 'Set up and configure email server for new account',
+        //       status: 'OPEN',
+        //       priority: 'HIGH'
+        //     },
+        //     value: 'OPEN',
+        //     property: 'status',
+        //     children: [],
+        //     constraints: {
+        //       isEnum: 'status must be one of the following values: PENDING, IN_PROGRESS, COMPLETED, CANCELLED, BLOCKED'
+        //     }
+        //   }
+        // ]
+        const formattedErrors = errors.map((error) => ({
+          property: error.property,
+          constraints: Object.values(error.constraints || []),
+          value: error.value,
+        }));
+
+        console.log('Formatted validation errors:', formattedErrors); // Log the formatted errors for debugging
 
         return new BadRequestException({
           message: 'Validation failed',

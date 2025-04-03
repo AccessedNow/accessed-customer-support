@@ -42,6 +42,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       data: {
         code: status,
         message: message,
+        details: exception.response?.details || [],
         stack: stack,
       },
       code: status,

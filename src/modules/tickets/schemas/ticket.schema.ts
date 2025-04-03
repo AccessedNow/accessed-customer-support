@@ -95,6 +95,12 @@ TicketSchema.virtual('notes', {
   localField: '_id',
   foreignField: 'ticket',
   options: { sort: { createdAt: -1 } },
+  justOne: false,
+  populate: {
+    path: 'files',
+    select: 'fileId fileType path createdAt',
+    options: { sort: { createdAt: -1 } },
+  },
 });
 
 TicketSchema.virtual('files', {

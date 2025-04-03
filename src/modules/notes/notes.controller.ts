@@ -221,8 +221,17 @@ export class NotesController {
       note: {
         value: {
           content: 'Internal note: Customer reported similar issues before',
-          type: 'INTERNAL',
-          isPrivate: true,
+          isPrivate: false,
+          files: [
+            {
+              url: 'https://customer-support-bucket-s3.s3.ap-southeast-1.amazonaws.com/customer-support/2025/04/03/acf32ca2-5ed9-4f66-9641-82a39743eff2/original/agadlriaaszpcfu.png',
+              type: 'image',
+            },
+            {
+              url: 'https://customer-support-bucket-s3.s3.ap-southeast-1.amazonaws.com/customer-support/2025/04/03/1eb08956-490e-449b-8c5d-52cc776fda4f/original/agadjbiaagbhefu.png',
+              type: 'image',
+            },
+          ],
         },
       },
     },

@@ -11,7 +11,7 @@ import { TicketsService } from '../tickets/tickets.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { ActivitiesService } from '../activities/activities.service';
-import { ActivityType } from '../activities/schemas/activity.schema';
+import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { EmployeesService } from '../employees/employees.service';
 import { TaskStatus } from 'src/common/enums/task.enum';
 
@@ -91,6 +91,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
         assignee: {
           id: assignee._id,
           name: assignee.name,
+          logType: ActivityLogType.TASK_CREATED,
           avatar: assignee.avatar,
         },
       },
@@ -211,6 +212,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
       ticket: ticket._id,
       metadata: {
         changes,
+        logType: ActivityLogType.TASK_UPDATED,
         priority: task.priority,
         ticketType: ticket.ticketType,
         assignee: task.assignedTo,
@@ -231,6 +233,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     });
     await this.activitiesService.create({
       type: ActivityType.TASK_DELETED,
+      logType: ActivityLogType.TASK_DELETED,
       description: `Task ${task.title} deleted`,
       createdBy: {
         id: createdByUser.id || user.id,

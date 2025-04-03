@@ -14,9 +14,11 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FilesService } from './files.service';
 import { MulterFile } from 'src/common/interfaces/multer-file.interface';
+import { ApiAuth } from 'src/common/decorators/swagger.decorator';
 
 @ApiTags('Files Management')
 @Controller('files')
+@ApiAuth()
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 

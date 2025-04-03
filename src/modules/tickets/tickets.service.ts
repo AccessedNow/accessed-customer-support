@@ -7,7 +7,7 @@ import { FindAllResponse } from 'src/common/types/common.type';
 import { ActivitiesService } from '../activities/activities.service';
 import { TicketStatus, Priority, TICKET_TYPE_PREFIX_MAP } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
-import { ActivityType } from '../activities/schemas/activity.schema';
+import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { SLA_CONFIG } from 'src/common/constants/sla-config';
 import { CustomersService } from '../customers/customers.service';
 import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
@@ -76,6 +76,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticket: ticket._id,
       metadata: {
         priority,
+        logType: ActivityLogType.TICKET_CREATED,
         ticketType: createTicketDto.ticketType,
         assignee: assignee,
       },
@@ -129,6 +130,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
           path: 'notes',
           select: 'content createdAt createdBy files',
           options: { sort: { createdAt: -1 }, limit: 3 },
+          populate: {
+            path: 'files',
+            select: 'fileId fileType path createdAt',
+            options: { sort: { createdAt: -1 } },
+          },
         },
         {
           path: 'files',
@@ -247,6 +253,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       },
       metadata: {
         filesAdded: fileCount,
+        logType: ActivityLogType.ATTACHMENT_ADDED,
       },
     });
   }
@@ -257,15 +264,19 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     createdBy: Employee,
   ) {
     let activityType = ActivityType.TICKET_UPDATED;
+    let activityLogType = ActivityLogType.TICKET_UPDATED;
     let description = 'Ticket updated';
 
     if (changes.status) {
       activityType = ActivityType.STATUS_CHANGED;
+      activityLogType = ActivityLogType.STATUS_CHANGED;
       description = `Status changed from ${changes.status.from} to ${changes.status.to}`;
     } else if (changes.priority) {
+      activityLogType = ActivityLogType.PRIORITY_CHANGED;
       activityType = ActivityType.PRIORITY_CHANGED;
       description = `Priority changed from ${changes.priority.from} to ${changes.priority.to}`;
     } else if (changes.assignee) {
+      activityLogType = ActivityLogType.ASSIGNED;
       activityType = ActivityType.ASSIGNED;
       description = `Ticket assigned to new agent`;
     }
@@ -281,6 +292,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       },
       metadata: {
         changes,
+        logType: activityLogType,
       },
     });
   }
