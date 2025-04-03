@@ -40,7 +40,6 @@ import { FilesModule } from './modules/files/files.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('mongo.uri'),
-        dbName: configService.get<string>('mongo.dbName'),
       }),
       inject: [ConfigService],
     }),
