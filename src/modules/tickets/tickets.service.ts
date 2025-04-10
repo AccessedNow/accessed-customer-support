@@ -43,11 +43,20 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const prefix = TICKET_TYPE_PREFIX_MAP[createTicketDto.ticketType] || 'OT';
     const sequence = await this.ticketCounterRepository.getNextSequence(prefix);
     const ticketId = `#${prefix}-${sequence.toString().padStart(6, '0')}`;
-    const priority = TICKET_TYPE_PRIORITY_MAP[createTicketDto.ticketType] || Priority.LOW;
+    const priority =
+      createTicketDto.priority ||
+      TICKET_TYPE_PRIORITY_MAP[createTicketDto.ticketType] ||
+      Priority.LOW;
     const sla = SLA_CONFIG[priority];
     const firstResponseDue = new Date(new Date().getTime() + sla.firstResponse * 60 * 60 * 1000);
     const resolutionDue = new Date(new Date().getTime() + sla.resolution * 60 * 60 * 1000);
-    const assignee = await this.determineAssignee(priority, createTicketDto.ticketType);
+
+    // Handle assignee and followers
+    const [assignee, followers] = await Promise.all([
+      this.handleAssignee(createTicketDto.assigneeId),
+      this.handleFollowers(createTicketDto.followers),
+    ]);
+
     const ticketData = {
       ...createTicketDto,
       ticketId,
@@ -62,7 +71,15 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       priority,
       firstResponseDue,
       resolutionDue,
-      assignee,
+      assignee: assignee
+        ? {
+            id: assignee._id,
+            employeeId: assignee.employeeId,
+            name: assignee.name,
+            avatar: assignee.avatar,
+          }
+        : {},
+      followers: followers.map((follower) => follower._id),
     };
 
     const ticket = await this.ticketsRepository.create(ticketData);
@@ -78,9 +95,17 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         priority,
         logType: ActivityLogType.TICKET_CREATED,
         ticketType: createTicketDto.ticketType,
-        assignee: assignee,
+        assignee: assignee
+          ? {
+              id: assignee._id,
+              employeeId: assignee.employeeId,
+              name: assignee.name,
+              avatar: assignee.avatar,
+            }
+          : null,
       },
     });
+
     if (createTicketDto.files && createTicketDto.files.length > 0) {
       await Promise.all(
         createTicketDto.files.map((file) =>
@@ -92,10 +117,45 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     return ticket;
   }
 
-  private async determineAssignee(priority: Priority, ticketType: string) {
-    console.log('priority', priority);
-    console.log('ticketType', ticketType);
-    return {};
+  private async handleAssignee(assigneeId?: string): Promise<Employee | null> {
+    if (!assigneeId) {
+      return null;
+    }
+
+    try {
+      const assignee = await this.employeesService.findEmployeeFromPartyService(assigneeId);
+      if (!assignee) {
+        throw new NotFoundException(`Assignee with ID ${assigneeId} not found`);
+      }
+      return assignee;
+    } catch (error) {
+      this.logger.error(`Error finding assignee: ${error.message}`);
+      throw new BadRequestException(`Invalid assignee ID: ${assigneeId}`);
+    }
+  }
+
+  private async handleFollowers(followerIds?: string[]): Promise<Employee[]> {
+    if (!followerIds || followerIds.length === 0) {
+      return [];
+    }
+
+    try {
+      const followers = await Promise.all(
+        followerIds.map((id) => this.employeesService.findEmployeeFromPartyService(id)),
+      );
+
+      // Filter out any null results
+      const validFollowers = followers.filter((follower) => follower !== null);
+
+      if (validFollowers.length !== followerIds.length) {
+        this.logger.warn('Some followers could not be found');
+      }
+
+      return validFollowers;
+    } catch (error) {
+      this.logger.error(`Error finding followers: ${error.message}`);
+      throw new BadRequestException('Error processing followers');
+    }
   }
 
   async findAll(query: any): Promise<FindAllResponse<Ticket>> {
@@ -192,10 +252,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       assigneeId &&
       (!ticket?.assignee?.assigneeId || assigneeId !== ticket.assignee?.assigneeId)
     ) {
-      const assignee = await this.employeesService.findEmployeeFromPartyService(assigneeId);
-      if (!assignee) {
-        throw new NotFoundException(`Assignee with ID ${assigneeId} not found`);
-      }
+      const assignee = await this.handleAssignee(assigneeId);
       changes['assigneeId'] = {
         from: ticket?.assignee?.assigneeId,
         to: assigneeId,
@@ -321,5 +378,126 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     };
 
     return validTransitions[fromStatus]?.includes(toStatus) || false;
+  }
+
+  async getFollowers(id: string) {
+    const ticket = await this.ticketsRepository.findOneById(id, null, {
+      populate: {
+        path: 'followers',
+        select: 'employeeId name email avatar',
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    return ticket.followers;
+  }
+
+  async addFollower(ticketId: string, employeeId: string, userId: string) {
+    const createdBy = await this.employeesService.findOneByCondition({ employeeId: userId });
+    const ticket = await this.ticketsRepository.findOneById(ticketId);
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+    }
+
+    const follower = await this.employeesService.findOneByCondition({ employeeId: employeeId });
+    if (!follower) {
+      const employee = await this.employeesService.findEmployeeFromPartyService(employeeId);
+      if (!employee) {
+        throw new NotFoundException(`Follower with ID ${employeeId} not found`);
+      }
+    }
+
+    // Check if employee is already a follower
+    if (ticket.followers.some((followerId) => followerId.toString() === follower._id.toString())) {
+      throw new BadRequestException(`Follower ${employeeId} is already following the ticket`);
+    }
+
+    // Add follower
+    await this.ticketsRepository.update(ticketId, {
+      followers: [...ticket.followers, follower._id as any],
+    });
+
+    // Create activity
+    await this.activitiesService.create({
+      type: ActivityType.TICKET_UPDATED,
+      description: `Employee ${follower.name} started following the ticket`,
+      ticket: ticketId,
+      createdBy: {
+        id: createdBy._id,
+        name: createdBy.name,
+      },
+      metadata: {
+        logType: ActivityLogType.TICKET_UPDATED,
+        changes: {
+          followers: {
+            from: ticket.followers,
+            to: [...ticket.followers, follower._id],
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      message: `Successfully added follower ${follower.name} to ticket ${ticketId}`,
+    };
+  }
+
+  async removeFollower(ticketId: string, followerId: string, userId: string) {
+    const createdBy = await this.employeesService.findOneByCondition({ employeeId: userId });
+    if (!createdBy) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const ticket = await this.ticketsRepository.findOneById(ticketId);
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+    }
+
+    const follower = await this.employeesService.findOne(followerId);
+    if (!follower) {
+      throw new NotFoundException(`Follower with ID ${followerId} not found`);
+    }
+
+    if (!ticket.followers.some((followerId) => followerId.toString() === follower._id.toString())) {
+      throw new BadRequestException(`Follower ${followerId} is not following the ticket`);
+    }
+
+    // Remove follower
+    await this.ticketsRepository.update(ticketId, {
+      followers: ticket.followers.filter(
+        (followerId) => followerId.toString() !== follower._id.toString(),
+      ),
+    });
+
+    // Create activity
+    await this.activitiesService.create({
+      type: ActivityType.TICKET_UPDATED,
+      description: `Employee ${follower.name} stopped following the ticket`,
+      ticket: ticketId,
+      createdBy: {
+        id: createdBy._id,
+        name: createdBy.name,
+      },
+      metadata: {
+        logType: ActivityLogType.TICKET_UPDATED,
+        changes: {
+          followers: {
+            from: ticket.followers,
+            to: ticket.followers.filter(
+              (followerId) => followerId.toString() !== follower._id.toString(),
+            ),
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      message: `Successfully removed follower ${follower.name} from ticket ${ticketId}`,
+    };
   }
 }

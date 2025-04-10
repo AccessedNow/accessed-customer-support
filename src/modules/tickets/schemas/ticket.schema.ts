@@ -28,7 +28,7 @@ export class Ticket extends BaseSchema {
   @Prop({ required: true })
   message: string;
 
-  @Prop({ required: true, enum: TicketType, default: TicketType.INCIDENT })
+  @Prop({ required: true, enum: TicketType, default: TicketType.SITE_ISSUE })
   ticketType: string;
 
   @Prop({ required: true, enum: Priority, default: Priority.MEDIUM })
@@ -48,6 +48,9 @@ export class Ticket extends BaseSchema {
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer' })
   createdBy: MongooseSchema.Types.ObjectId;
+
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Employee' })
+  followers: MongooseSchema.Types.ObjectId[];
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
