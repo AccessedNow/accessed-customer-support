@@ -1,11 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import { TicketType } from 'src/common/enums/ticket.enum';
+import { Priority, TicketType } from 'src/common/enums/ticket.enum';
 
 export class CreateTicketDto {
   @IsOptional()
   @IsString()
   customerId: string;
+
+  @IsOptional()
+  @IsString()
+  assigneeId: string;
 
   @ApiProperty({
     description: 'Subject of the ticket',
@@ -30,12 +34,22 @@ export class CreateTicketDto {
   @ApiProperty({
     description: 'Type of ticket',
     enum: TicketType,
-    example: TicketType.INCIDENT,
-    default: TicketType.INCIDENT,
+    example: TicketType.SITE_ISSUE,
+    default: TicketType.SITE_ISSUE,
   })
   @IsEnum(TicketType)
-  @IsOptional()
+  @IsNotEmpty()
   ticketType: string;
+
+  @ApiProperty({
+    description: 'Priority of the ticket',
+    enum: Priority,
+    example: Priority.MEDIUM,
+    default: Priority.MEDIUM,
+  })
+  @IsEnum(Priority)
+  @IsOptional()
+  priority: string;
 
   @ApiProperty({
     description: 'Source of the ticket (web, email, phone, etc.)',
@@ -53,6 +67,14 @@ export class CreateTicketDto {
   })
   @IsOptional()
   files?: FileDto[];
+
+  @ApiProperty({
+    description: 'Followers of the ticket',
+    type: 'array',
+    items: { type: 'string' },
+  })
+  @IsOptional()
+  followers?: string[];
 }
 
 export class FileDto {

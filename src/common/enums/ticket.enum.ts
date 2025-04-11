@@ -1,20 +1,18 @@
 export enum TicketType {
-  INCIDENT = 'INCIDENT',
-  PROBLEM = 'PROBLEM',
-  CHANGE_REQUEST = 'CHANGE_REQUEST',
-  SERVICE_REQUEST = 'SERVICE_REQUEST',
-  QUESTION = 'QUESTION',
-  FEEDBACK = 'FEEDBACK',
+  SITE_ISSUE = 'SITE_ISSUE',
+  PRODUCT_FEEDBACK = 'PRODUCT_FEEDBACK',
+  INVESTOR = 'INVESTOR',
+  BRANDING = 'BRANDING',
+  REQUEST_REFUND = 'REQUEST_REFUND',
   OTHER = 'OTHER',
 }
 
 export const TICKET_TYPE_PREFIX_MAP = {
-  [TicketType.INCIDENT]: 'IN',
-  [TicketType.PROBLEM]: 'PR',
-  [TicketType.CHANGE_REQUEST]: 'CH',
-  [TicketType.SERVICE_REQUEST]: 'SR',
-  [TicketType.QUESTION]: 'QU',
-  [TicketType.FEEDBACK]: 'FB',
+  [TicketType.SITE_ISSUE]: 'SI',
+  [TicketType.PRODUCT_FEEDBACK]: 'PF',
+  [TicketType.INVESTOR]: 'IN',
+  [TicketType.BRANDING]: 'BR',
+  [TicketType.REQUEST_REFUND]: 'RF',
   [TicketType.OTHER]: 'OT',
 };
 

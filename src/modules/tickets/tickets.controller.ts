@@ -42,11 +42,16 @@ export class TicketsController {
     examples: {
       ticket: {
         value: {
-          subject: 'Recurring Database Connection Errors',
-          message:
-            'We are facing frequent database connection issues, impacting performance. Needs long-term resolution.',
-          ticketType: 'PROBLEM',
-          source: 'IT Support Team',
+          subject: 'VPN Access Request',
+          message: 'Need VPN access for remote work during the upcoming business trip.',
+          ticketType: 'INVESTOR',
+          priority: 'MEDIUM',
+          source: 'POSTMAN',
+          assigneeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:222',
+          followers: [
+            '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
+            '4:6db934cb-9aba-4675-a007-eb0d31c51391:1493',
+          ],
           files: [
             {
               url: 'https://customer-support-bucket-s3.s3.ap-southeast-1.amazonaws.com/customer-support/2025/04/01/3574aa7e-0007-4e62-9cf3-1333a411c1ee/large/agadnxiaahzdcfu.webp',
@@ -160,7 +165,7 @@ export class TicketsController {
         value: {
           status: TicketStatus.OPEN,
           priority: Priority.HIGH,
-          ticketType: TicketType.INCIDENT,
+          ticketType: TicketType.SITE_ISSUE,
         },
       },
     },
@@ -633,5 +638,144 @@ export class TicketsController {
   deleteTicket(@Param('id') id: string) {
     return this.ticketsService.softDelete(id);
   }
-}
 
+  @Get(':id/followers')
+  @ApiOperation({ summary: 'Get all followers of a ticket' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns array of followers with their basic information',
+    schema: {
+      example: {
+        data: [
+          {
+            _id: '67f64e784c4ede7c2f80347a',
+            name: 'ban  HR',
+            avatar:
+              'https://accessed.s3.us-west-2.amazonaws.com/user/4:6db934cb-9aba-4675-a007-eb0d31c51391:487/avatar/person_4:6db934cb-9aba-4675-a007-eb0d31c51391:487_1743746118020.jpg',
+            employeeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
+          },
+          {
+            _id: '67f64e794c4ede7c2f80347c',
+            name: 'Mỹ Tâm Hồ',
+            avatar: '',
+            employeeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:1493',
+          },
+        ],
+        code: 200,
+        message: 'Success',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+  })
+  @RequirePrivileges('VIEW_TICKETS')
+  @Version('1')
+  async getFollowers(@Param('id') id: string) {
+    return this.ticketsService.getFollowers(id);
+  }
+
+  @Post(':id/followers')
+  @ApiOperation({ summary: 'Add a new follower to a ticket' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully added follower',
+    schema: {
+      example: {
+        data: {
+          success: true,
+          message:
+            'Successfully added follower Accessed Developer 2 to ticket 67f64e794c4ede7c2f803480',
+        },
+        code: 200,
+        message: 'Success',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket or employee not found',
+    schema: {
+      example: {
+        data: {
+          code: 404,
+          message: 'Ticket with ID 67f64e794c4ede7c2f803481 not found',
+          details: [],
+        },
+        code: 404,
+        message: 'Success',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Employee is already a follower',
+  })
+  @RequirePrivileges('UPDATE_TICKETS')
+  @Version('1')
+  async addFollower(
+    @Param('id') ticketId: string,
+    @Body('employeeId') employeeId: string,
+    @User() user: any,
+  ) {
+    return this.ticketsService.addFollower(ticketId, employeeId, user.id);
+  }
+
+  @Delete(':id/followers/:followerId')
+  @ApiOperation({ summary: 'Remove a follower from a ticket' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully removed follower',
+    schema: {
+      example: {
+        data: {
+          success: true,
+          message:
+            'Successfully removed follower Accessed Developer 2 from ticket 67f64e794c4ede7c2f803480',
+        },
+        code: 200,
+        message: 'Success',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket, follower, or user not found',
+    schema: {
+      example: {
+        data: {
+          code: 404,
+          message: 'Ticket with ID 67f64e794c4ede7c2f803481 not found',
+          details: [],
+        },
+        code: 404,
+        message: 'Success',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Follower is not following the ticket',
+    schema: {
+      example: {
+        data: {
+          code: 404,
+          message: 'Follower with ID 67f65ebe34bda64a243a19b0 not found',
+          details: [],
+        },
+        code: 404,
+        message: 'Success',
+      },
+    },
+  })
+  @RequirePrivileges('UPDATE_TICKETS')
+  @Version('1')
+  async removeFollower(
+    @User() user: any,
+    @Param('id') id: string,
+    @Param('followerId') followerId: string,
+  ) {
+    return this.ticketsService.removeFollower(id, followerId, user.id);
+  }
+}
