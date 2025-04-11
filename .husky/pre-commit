@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-echo "👷 Checking code quality before committing..."
-npm run lint
-npm test -- --passWithNoTests
