@@ -11,7 +11,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiBody, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { NotesService } from './notes.service';
 import { FilterNoteDto } from './dto/filter-note.dto';
 import { ParseMongoIdPipe } from 'src/common/pipes/parse-mongo-id.pipe';
@@ -41,6 +47,7 @@ export class NotesController {
   @ApiBody({
     type: FilterNoteDto,
     description: 'Filter criteria',
+    required: false,
     examples: {
       filters: {
         value: {
@@ -126,7 +133,7 @@ export class NotesController {
   async findAll(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @Query() pageSortDto: PageSortDto,
-    @Body() filterNoteDto: FilterNoteDto,
+    @Body() filterNoteDto: FilterNoteDto
   ) {
     const query = { ...pageSortDto, ...filterNoteDto };
     return this.notesService.findAll({ ticketId, query });
@@ -199,7 +206,7 @@ export class NotesController {
   @Version('1')
   async findOne(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
-    @Param('id', ParseMongoIdPipe) id: string,
+    @Param('id', ParseMongoIdPipe) id: string
   ) {
     return this.notesService.findOneByTicketAndId({ ticketId, id });
   }
@@ -285,7 +292,7 @@ export class NotesController {
   async create(
     @Param('ticketId') ticketId: string,
     @Body() createNoteDto: CreateNoteDto,
-    @User() user: any,
+    @User() user: any
   ) {
     return this.notesService.create({ ticketId, createNoteDto, user });
   }
@@ -366,7 +373,7 @@ export class NotesController {
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @Param('id', ParseMongoIdPipe) id: string,
     @Body() updateNoteDto: UpdateNoteDto,
-    @User() user: any,
+    @User() user: any
   ) {
     return this.notesService.updateNote({ ticketId, id, updateNoteDto, user });
   }
@@ -417,7 +424,7 @@ export class NotesController {
   async delete(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @Param('id', ParseMongoIdPipe) id: string,
-    @User() user: any,
+    @User() user: any
   ) {
     return this.notesService.delete({ ticketId, id, user });
   }
