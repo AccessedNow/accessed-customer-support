@@ -30,7 +30,7 @@ async function bootstrap() {
   if (corsEnabled) {
     app.enableCors({
       origin: corsOrigins,
-      // credentials: true,
+      credentials: true,
     });
   }
 
