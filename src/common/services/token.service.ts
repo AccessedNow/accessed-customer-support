@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
@@ -9,7 +9,9 @@ export class TokenService {
 
   decodeToken(token: string): any {
     try {
-      const payload = this.jwtService.decode(token);
+      const payload = this.jwtService.verify(token, {
+        ignoreExpiration: false,
+      });
 
       if (!payload) {
         this.logger.error('Invalid token: no payload');
@@ -22,38 +24,50 @@ export class TokenService {
         return null;
       }
 
+      if (!userInfo.id || !userInfo.username) {
+        this.logger.error('Invalid token: missing required user info fields');
+        return null;
+      }
+
       const roles = userInfo.roles || [];
       const privileges = [];
 
-      roles.forEach((role) => {
-        if (
-          role.name === 'ROLE_CUSTOMER_SUPPORT' ||
-          role.name === 'ROLE_CUSTOMER_SUPPORT_ADMIN' ||
-          role.name === 'ROLE_ADMIN'
-        ) {
-          if (role.privileges && Array.isArray(role.privileges)) {
-            role.privileges.forEach((privilege) => {
-              if (!privileges.includes(privilege.name)) {
-                privileges.push(privilege.name);
-              }
-            });
+      if (roles.length > 0) {
+        roles.forEach((role) => {
+          if (
+            role.name === 'ROLE_CUSTOMER_SUPPORT' ||
+            role.name === 'ROLE_CUSTOMER_SUPPORT_ADMIN' ||
+            role.name === 'ROLE_ADMIN'
+          ) {
+            if (role.privileges && Array.isArray(role.privileges)) {
+              role.privileges.forEach((privilege) => {
+                if (!privileges.includes(privilege.name)) {
+                  privileges.push(privilege.name);
+                }
+              });
+            }
           }
-        }
-      });
+        });
+      }
 
-      const customer = {
+      const user = {
         id: userInfo.id,
-        firstName: userInfo.firstName,
-        lastName: userInfo.lastName,
+        firstName: userInfo.firstName || '',
+        lastName: userInfo.lastName || '',
         username: userInfo.username,
         roles: roles.map((r) => r.name),
         privileges,
       };
 
-      return customer;
+      return user;
     } catch (error) {
-      this.logger.error(`Token decode error: ${error.message}`);
+      if (error.name === 'TokenExpiredError') {
+        this.logger.error(`Token expired: ${error.message}`);
+        throw new UnauthorizedException('Token has expired');
+      }
+      this.logger.error(`Token verification error: ${error.message}`);
       return null;
     }
   }
 }
+
