@@ -1,101 +1,95 @@
-import './boilerplate.polyfill';
+import { NestFactory } from '@nestjs/core';
+import { Logger, ValidationPipe, BadRequestException, VersioningType } from '@nestjs/common';
+import { AppModule } from './app.module';
+import { ConfigService } from '@nestjs/config';
+import { setupSwagger } from './config/swagger.config';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
-import {
-  ClassSerializerInterceptor,
-  HttpStatus,
-  UnprocessableEntityException,
-  ValidationPipe,
-} from '@nestjs/common';
-import { NestFactory, Reflector } from '@nestjs/core';
-import { Transport } from '@nestjs/microservices';
-import type { NestExpressApplication } from '@nestjs/platform-express';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import compression from 'compression';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import { initializeTransactionalContext } from 'typeorm-transactional';
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('NestApplication');
+  const configService = app.get(ConfigService);
+  const port = configService.get<number>('app.port');
+  const nodeEnv = configService.get<string>('app.nodeEnv') || 'development';
+  const apiPrefix = configService.get<string>('app.apiPrefix');
+  const apiVersion = configService.get<string>('app.apiVersion');
+  const corsEnabled = configService.get<boolean>('app.corsEnabled');
+  const corsOrigins = configService.get<string[]>('app.corsOrigins');
 
-import { AppModule } from './app.module.ts';
-import { HttpExceptionFilter } from './filters/bad-request.filter.ts';
-import { QueryFailedFilter } from './filters/query-failed.filter.ts';
-import { TranslationInterceptor } from './interceptors/translation-interceptor.service.ts';
-import { setupSwagger } from './setup-swagger.ts';
-import { ApiConfigService } from './shared/services/api-config.service.ts';
-import { TranslationService } from './shared/services/translation.service.ts';
-import { SharedModule } from './shared/shared.module.ts';
+  // Set global API prefix
+  app.setGlobalPrefix(apiPrefix);
 
-export async function bootstrap(): Promise<NestExpressApplication> {
-  initializeTransactionalContext();
-  const app = await NestFactory.create<NestExpressApplication>(
-    AppModule,
-    new ExpressAdapter(),
-    { cors: true },
-  );
-  app.enable('trust proxy'); // only if you're behind a reverse proxy (Heroku, Bluemix, AWS ELB, Nginx, etc)
-  app.use(helmet());
-  // app.setGlobalPrefix('/api'); use api as global prefix if you don't have subdomain
-  app.use(compression());
-  app.use(morgan('combined'));
-  app.enableVersioning();
+  // Enable API versioning
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: apiVersion,
+  });
 
-  const reflector = app.get(Reflector);
+  // Configure CORS if enabled
+  if (corsEnabled) {
+    app.enableCors({
+      origin: corsOrigins,
+      credentials: true,
+    });
+  }
 
-  app.useGlobalFilters(
-    new HttpExceptionFilter(reflector),
-    new QueryFailedFilter(reflector),
-  );
+  // Add global exception filter
+  app.useGlobalFilters(new HttpExceptionFilter());
 
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(reflector),
-    new TranslationInterceptor(
-      app.select(SharedModule).get(TranslationService),
-    ),
-  );
+  // Add global transform interceptor
+  app.useGlobalInterceptors(new TransformInterceptor());
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
       transform: true,
-      dismissDefaultMessages: true,
-      exceptionFactory: (errors) => new UnprocessableEntityException(errors),
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        console.log('Validation errors:', errors); // Log the validation errors for debugging
+        // Validation errors: [
+        //   ValidationError {
+        //     target: CreateTaskDto {
+        //       title: 'Configure Email Server',
+        //       description: 'Set up and configure email server for new account',
+        //       status: 'OPEN',
+        //       priority: 'HIGH'
+        //     },
+        //     value: 'OPEN',
+        //     property: 'status',
+        //     children: [],
+        //     constraints: {
+        //       isEnum: 'status must be one of the following values: PENDING, IN_PROGRESS, COMPLETED, CANCELLED, BLOCKED'
+        //     }
+        //   }
+        // ]
+        const formattedErrors = errors.map((error) => ({
+          property: error.property,
+          constraints: Object.values(error.constraints || []),
+          value: error.value,
+        }));
+
+        console.log('Formatted validation errors:', formattedErrors); // Log the formatted errors for debugging
+
+        return new BadRequestException({
+          message: 'Validation failed',
+          error: 'Bad Request',
+          details: formattedErrors,
+          code: 'VALIDATION_FAILED',
+        });
+      },
     }),
   );
 
-  const configService = app.select(SharedModule).get(ApiConfigService);
+  // Setup Swagger
+  setupSwagger(app, nodeEnv, apiPrefix, apiVersion);
 
-  // only start nats if it is enabled
-  if (configService.natsEnabled) {
-    const natsConfig = configService.natsConfig;
-    app.connectMicroservice({
-      transport: Transport.NATS,
-      options: {
-        url: `nats://${natsConfig.host}:${natsConfig.port}`,
-        queue: 'main_service',
-      },
-    });
-
-    await app.startAllMicroservices();
+  // Only show Swagger docs URL in non-production environments
+  if (nodeEnv !== 'production') {
+    logger.log(`Swagger documentation is available at http://localhost:${port}/${apiPrefix}/docs`);
   }
 
-  if (configService.documentationEnabled) {
-    setupSwagger(app);
-  }
-
-  // Starts listening for shutdown hooks
-  if (!configService.isDevelopment) {
-    app.enableShutdownHooks();
-  }
-
-  const port = configService.appConfig.port;
-
-  if ((<any>import.meta).env.PROD) {
-    await app.listen(port);
-    console.info(`server running on ${await app.getUrl()}`);
-  }
-
-
-  return app;
+  await app.listen(port);
+  logger.log(`Application is running on: http://localhost:${port}/${apiPrefix}`);
 }
-
-export const viteNodeApp = bootstrap();
+bootstrap();
