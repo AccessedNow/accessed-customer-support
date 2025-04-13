@@ -31,8 +31,10 @@ import { FilesModule } from './modules/files/files.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '60m' },
+        secret: Buffer.from(configService.get<string>('JWT_SECRET'), 'base64').toString('utf8'),
+        signOptions: {
+          algorithm: 'HS256',
+        },
       }),
       inject: [ConfigService],
     }),
@@ -68,3 +70,4 @@ import { FilesModule } from './modules/files/files.module';
   ],
 })
 export class AppModule {}
+

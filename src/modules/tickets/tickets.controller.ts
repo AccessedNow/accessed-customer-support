@@ -11,7 +11,13 @@ import {
   Query,
   HttpCode,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { User } from 'src/common/decorators/user.decorator';
@@ -20,7 +26,11 @@ import { PageSortDto } from 'src/common/utils/page-sort.dto';
 import { FilterTicketDto } from './dto/filter-ticket.dto';
 import { RequirePrivileges } from 'src/common/decorators/require-privileges.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { TicketStatus, TicketType, Priority } from 'src/common/enums/ticket.enum';
+import {
+  TicketStatus,
+  TicketType,
+  Priority,
+} from 'src/common/enums/ticket.enum';
 import { ApiAuth } from 'src/common/decorators/swagger.decorator';
 
 @ApiTags('Tickets Management')
@@ -43,7 +53,8 @@ export class TicketsController {
       ticket: {
         value: {
           subject: 'VPN Access Request',
-          message: 'Need VPN access for remote work during the upcoming business trip.',
+          message:
+            'Need VPN access for remote work during the upcoming business trip.',
           ticketType: 'INVESTOR',
           priority: 'MEDIUM',
           source: 'POSTMAN',
@@ -136,7 +147,8 @@ export class TicketsController {
         data: {
           data: {
             code: 403,
-            message: 'User does not have the required privilege(s): ADD_TICKETS',
+            message:
+              'User does not have the required privilege(s): ADD_TICKETS',
           },
           code: 403,
           message: 'Success',
@@ -160,6 +172,7 @@ export class TicketsController {
   @ApiBody({
     type: FilterTicketDto,
     description: 'Filter criteria',
+    required: false,
     examples: {
       filters: {
         value: {
@@ -292,7 +305,8 @@ export class TicketsController {
         data: {
           data: {
             code: 403,
-            message: 'User does not have the required privilege(s): VIEW_TICKETS',
+            message:
+              'User does not have the required privilege(s): VIEW_TICKETS',
           },
           code: 403,
           message: 'Success',
@@ -303,7 +317,10 @@ export class TicketsController {
   @RequirePrivileges('VIEW_TICKETS')
   @Version('1')
   @HttpCode(HttpStatus.OK)
-  getTickets(@Body() filterTicketDto: FilterTicketDto, @Query() pageSortDto: PageSortDto) {
+  getTickets(
+    @Body() filterTicketDto: FilterTicketDto,
+    @Query() pageSortDto: PageSortDto
+  ) {
     const query = { ...filterTicketDto, ...pageSortDto };
     return this.ticketsService.findAll(query);
   }
@@ -311,7 +328,8 @@ export class TicketsController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get a ticket by ID',
-    description: 'Retrieves detailed information of a specific ticket by its unique identifier.',
+    description:
+      'Retrieves detailed information of a specific ticket by its unique identifier.',
   })
   @ApiParam({
     name: 'id',
@@ -334,7 +352,8 @@ export class TicketsController {
             avatar: '',
           },
           subject: 'New Email Account Setup',
-          message: 'Request to create an official email account for a new employee.',
+          message:
+            'Request to create an official email account for a new employee.',
           ticketType: 'SERVICE_REQUEST',
           priority: 'MEDIUM',
           status: 'OPEN',
@@ -422,7 +441,8 @@ export class TicketsController {
         data: {
           data: {
             code: 403,
-            message: 'User does not have the required privilege(s): VIEW_TICKETS',
+            message:
+              'User does not have the required privilege(s): VIEW_TICKETS',
           },
           code: 403,
           message: 'Success',
@@ -474,7 +494,8 @@ export class TicketsController {
             avatar: '',
           },
           subject: 'New Email Account Setup',
-          message: 'Request to create an official email account for a new employee.',
+          message:
+            'Request to create an official email account for a new employee.',
           ticketType: 'SERVICE_REQUEST',
           priority: 'MEDIUM',
           status: 'CLOSED',
@@ -541,7 +562,8 @@ export class TicketsController {
         data: {
           data: {
             code: 403,
-            message: 'User does not have the required privilege(s): UPDATE_TICKETS',
+            message:
+              'User does not have the required privilege(s): UPDATE_TICKETS',
           },
           code: 403,
           message: 'Success',
@@ -554,7 +576,7 @@ export class TicketsController {
   updateTicket(
     @Param('id') id: string,
     @Body() updateTicketDto: UpdateTicketDto,
-    @User() user: any,
+    @User() user: any
   ) {
     const updateData = {
       ...updateTicketDto,
@@ -625,7 +647,8 @@ export class TicketsController {
         data: {
           data: {
             code: 403,
-            message: 'User does not have the required privilege(s): DELETE_TICKETS',
+            message:
+              'User does not have the required privilege(s): DELETE_TICKETS',
           },
           code: 403,
           message: 'Success',
@@ -678,6 +701,21 @@ export class TicketsController {
 
   @Post(':id/followers')
   @ApiOperation({ summary: 'Add a new follower to a ticket' })
+  @ApiBody({
+    description: 'Employee ID to add as follower',
+    required: true,
+    schema: {
+      type: 'object',
+      properties: {
+        employeeId: {
+          type: 'string',
+          example: '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
+          description: 'The ID of the employee to add as a follower',
+        },
+      },
+      required: ['employeeId'],
+    },
+  })
   @ApiResponse({
     status: 200,
     description: 'Successfully added follower',
@@ -717,7 +755,7 @@ export class TicketsController {
   async addFollower(
     @Param('id') ticketId: string,
     @Body('employeeId') employeeId: string,
-    @User() user: any,
+    @User() user: any
   ) {
     return this.ticketsService.addFollower(ticketId, employeeId, user.id);
   }
@@ -774,7 +812,7 @@ export class TicketsController {
   async removeFollower(
     @User() user: any,
     @Param('id') id: string,
-    @Param('followerId') followerId: string,
+    @Param('followerId') followerId: string
   ) {
     return this.ticketsService.removeFollower(id, followerId, user.id);
   }
