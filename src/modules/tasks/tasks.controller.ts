@@ -17,7 +17,6 @@ import {
   ApiResponse,
   ApiTags,
   ApiBody,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { FilterTaskDto } from './dto/filter-task.dto';
