@@ -13,12 +13,17 @@ export class EmployeesService extends BaseServiceAbstract<Employee> {
     @Inject('EmployeesRepositoryInterface')
     protected readonly employeesRepository: EmployeesRepositoryInterface,
     protected readonly httpService: HttpService,
-    protected readonly configService: ConfigService,
+    protected readonly configService: ConfigService
   ) {
-    super(employeesRepository, httpService, configService, new Logger(EmployeesService.name));
+    super(
+      employeesRepository,
+      httpService,
+      configService,
+      new Logger(EmployeesService.name)
+    );
   }
 
   async findEmployeeFromPartyService(employeeId: string) {
-    return this.findFromPartyService(employeeId, 'Employee');
+    return this.findMemberInCompany(employeeId, 'Employee');
   }
 }

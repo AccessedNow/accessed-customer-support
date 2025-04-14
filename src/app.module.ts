@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { validationSchema, validationOptions } from './config/validation.config';
+import {
+  validationSchema,
+  validationOptions,
+} from './config/validation.config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HealthModule } from './modules/health/health.module';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
@@ -31,7 +34,10 @@ import { FilesModule } from './modules/files/files.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: Buffer.from(configService.get<string>('JWT_SECRET'), 'base64').toString('utf8'),
+        secret: Buffer.from(
+          configService.get<string>('JWT_SECRET'),
+          'base64'
+        ).toString('utf8'),
         signOptions: {
           algorithm: 'HS256',
         },
@@ -70,4 +76,3 @@ import { FilesModule } from './modules/files/files.module';
   ],
 })
 export class AppModule {}
-

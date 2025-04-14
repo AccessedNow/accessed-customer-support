@@ -26,13 +26,12 @@ async function bootstrap() {
     defaultVersion: apiVersion,
   });
 
-  // Configure CORS if enabled
-  if (corsEnabled) {
-    app.enableCors({
-      origin: corsOrigins,
-      credentials: true,
-    });
-  }
+  // Configure CORS
+  app.enableCors({
+    origin: corsEnabled ? corsOrigins : true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
 
   // Add global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -81,7 +80,6 @@ async function bootstrap() {
     }),
   );
 
-  // Setup Swagger
   setupSwagger(app, nodeEnv, apiPrefix, apiVersion);
 
   // Only show Swagger docs URL in non-production environments

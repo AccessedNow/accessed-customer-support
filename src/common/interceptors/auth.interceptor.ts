@@ -12,12 +12,13 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { REQUIRED_PRIVILEGES_KEY } from '../decorators/require-privileges.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { AUTH_ONLY_KEY } from '../decorators/auth-only.decorator';
 
 @Injectable()
 export class AuthInterceptor implements NestInterceptor {
   constructor(
     private readonly tokenService: TokenService,
-    private readonly reflector: Reflector,
+    private readonly reflector: Reflector
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -44,21 +45,35 @@ export class AuthInterceptor implements NestInterceptor {
       throw new UnauthorizedException('Invalid token payload');
     }
 
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]) || ['ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN', 'ROLE_ADMIN'];
+    // Add token to request
+    request.token = token;
+
+    // Check if the route is auth-only (no permission checks)
+    const isAuthOnly = this.reflector.getAllAndOverride<boolean>(
+      AUTH_ONLY_KEY,
+      [context.getHandler(), context.getClass()]
+    );
+
+    if (isAuthOnly) {
+      request.user = user;
+      return next.handle();
+    }
+
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()]
+    ) || ['ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN', 'ROLE_ADMIN'];
 
     if (requiredRoles.length && !this.matchRoles(requiredRoles, user)) {
       throw new ForbiddenException(
-        `User does not have the required role(s): ${requiredRoles.join(', ')}`,
+        `User does not have the required role(s): ${requiredRoles.join(', ')}`
       );
     }
 
-    const requiredPrivileges = this.reflector.getAllAndOverride<string[]>(REQUIRED_PRIVILEGES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPrivileges = this.reflector.getAllAndOverride<string[]>(
+      REQUIRED_PRIVILEGES_KEY,
+      [context.getHandler(), context.getClass()]
+    );
 
     if (
       requiredPrivileges &&
@@ -66,7 +81,7 @@ export class AuthInterceptor implements NestInterceptor {
       !this.matchPrivileges(requiredPrivileges, user)
     ) {
       throw new ForbiddenException(
-        `User does not have the required privilege(s): ${requiredPrivileges.join(', ')}`,
+        `User does not have the required privilege(s): ${requiredPrivileges.join(', ')}`
       );
     }
 
@@ -85,6 +100,8 @@ export class AuthInterceptor implements NestInterceptor {
     if (!user.privileges || !Array.isArray(user.privileges)) {
       return false;
     }
-    return requiredPrivileges.every((privilege) => user.privileges.includes(privilege));
+    return requiredPrivileges.every((privilege) =>
+      user.privileges.includes(privilege)
+    );
   }
 }

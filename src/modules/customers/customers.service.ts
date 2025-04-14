@@ -13,9 +13,14 @@ export class CustomersService extends BaseServiceAbstract<Customer> {
     @Inject('CustomersRepositoryInterface')
     protected readonly customersRepository: CustomersRepositoryInterface,
     protected readonly httpService: HttpService,
-    protected readonly configService: ConfigService,
+    protected readonly configService: ConfigService
   ) {
-    super(customersRepository, httpService, configService, new Logger(CustomersService.name));
+    super(
+      customersRepository,
+      httpService,
+      configService,
+      new Logger(CustomersService.name)
+    );
   }
 
   async findCustomerFromPartyService(customerId: string) {

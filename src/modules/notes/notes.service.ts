@@ -1,14 +1,26 @@
-import { Inject, Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Note } from './schemas/note.schema';
 import { NotesRepositoryInterface } from 'src/core/repositories/interfaces/notes.interface';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
+import {
+  FilterMap,
+  QueryBuilderUtil,
+} from 'src/common/utils/query-builder.util';
 import { CreateNoteDto } from './dto/create-note.dto';
 import { UpdateNoteDto } from './dto/update-note.dto';
 import { ActivitiesService } from '../activities/activities.service';
-import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
+import {
+  ActivityLogType,
+  ActivityType,
+} from '../activities/schemas/activity.schema';
 import { Types } from 'mongoose';
 import { FilesService } from '../files/files.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -26,9 +38,14 @@ export class NotesService extends BaseServiceAbstract<Note> {
     private readonly activitiesService: ActivitiesService,
     private readonly filesService: FilesService,
     private readonly ticketsService: TicketsService,
-    private readonly employeesService: EmployeesService,
+    private readonly employeesService: EmployeesService
   ) {
-    super(notesRepository, httpService, configService, new Logger(NotesService.name));
+    super(
+      notesRepository,
+      httpService,
+      configService,
+      new Logger(NotesService.name)
+    );
   }
 
   async findAll({ ticketId, query }: { ticketId: string; query: any }) {
@@ -39,7 +56,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     };
     const conditions = QueryBuilderUtil.buildFilterConditions(
       { ...query, ticket: new Types.ObjectId(ticketId) },
-      filterMap,
+      filterMap
     );
     const options = QueryBuilderUtil.buildQueryOptions(query);
     const populateOptions = {
@@ -62,7 +79,13 @@ export class NotesService extends BaseServiceAbstract<Note> {
     });
   }
 
-  async findOneByTicketAndId({ ticketId, id }: { ticketId: string; id: string }) {
+  async findOneByTicketAndId({
+    ticketId,
+    id,
+  }: {
+    ticketId: string;
+    id: string;
+  }) {
     const note = await this.notesRepository.findOneByCondition({
       _id: id,
       ticket: new Types.ObjectId(ticketId),
@@ -97,7 +120,9 @@ export class NotesService extends BaseServiceAbstract<Note> {
     const ticket = await this.ticketsService.findOneById(ticketId);
     if (!ticket) throw new NotFoundException('Ticket not found');
 
-    const createdBy = await this.employeesService.findEmployeeFromPartyService(user.id);
+    const createdBy = await this.employeesService.findEmployeeFromPartyService(
+      user.id
+    );
     const note = await this.notesRepository.create({
       ...createNoteDto,
       ticket: new Types.ObjectId(ticketId),
@@ -130,8 +155,8 @@ export class NotesService extends BaseServiceAbstract<Note> {
             file,
             ticketId: ticket._id.toString(),
             noteId: note._id.toString(),
-          }),
-        ),
+          })
+        )
       );
     }
 
@@ -155,7 +180,9 @@ export class NotesService extends BaseServiceAbstract<Note> {
     });
     if (!note) throw new NotFoundException('Note not found');
 
-    const updatedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
+    const updatedBy = await this.employeesService.findEmployeeFromPartyService(
+      user.id
+    );
     if (!updatedBy) throw new NotFoundException('Employee not found');
 
     if (note.createdBy.id.toString() !== updatedBy._id.toString())
@@ -178,7 +205,10 @@ export class NotesService extends BaseServiceAbstract<Note> {
       updateData['content'] = updateNoteDto.content;
     }
 
-    if (updateNoteDto.isPrivate !== undefined && updateNoteDto.isPrivate !== note.isPrivate) {
+    if (
+      updateNoteDto.isPrivate !== undefined &&
+      updateNoteDto.isPrivate !== note.isPrivate
+    ) {
       changes['isPrivate'] = {
         from: note.isPrivate,
         to: updateNoteDto.isPrivate,
@@ -202,7 +232,8 @@ export class NotesService extends BaseServiceAbstract<Note> {
             fileId: createdFile.fileId,
             path: createdFile.path,
             fileType: createdFile.fileType,
-            filename: createdFile.filename || file.url.split('/').pop() || 'unknown',
+            filename:
+              createdFile.filename || file.url.split('/').pop() || 'unknown',
           });
         } catch (error) {
           this.logger.error(`Error creating file: ${error.message}`);
@@ -239,7 +270,10 @@ export class NotesService extends BaseServiceAbstract<Note> {
       ticket: ticketId,
       metadata: {
         noteId: id,
-        isPrivate: updateData.isPrivate !== undefined ? updateData.isPrivate : note.isPrivate,
+        isPrivate:
+          updateData.isPrivate !== undefined
+            ? updateData.isPrivate
+            : note.isPrivate,
         logType: activityLogType,
         changes: changes,
         ...(updateData.metadataChanges || {}),
@@ -252,14 +286,24 @@ export class NotesService extends BaseServiceAbstract<Note> {
     return await this.notesRepository.update(id, updateData);
   }
 
-  async delete({ ticketId, id, user }: { ticketId: string; id: string; user: any }) {
+  async delete({
+    ticketId,
+    id,
+    user,
+  }: {
+    ticketId: string;
+    id: string;
+    user: any;
+  }) {
     console.log('delete note', ticketId, id);
     const note = await this.notesRepository.findOneByCondition({
       _id: id,
       ticket: new Types.ObjectId(ticketId),
     });
     if (!note) throw new NotFoundException('Note not found');
-    const deletedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
+    const deletedBy = await this.employeesService.findEmployeeFromPartyService(
+      user.id
+    );
     if (note.createdBy.id.toString() !== deletedBy._id.toString())
       throw new BadRequestException('You can only delete your own notes');
 

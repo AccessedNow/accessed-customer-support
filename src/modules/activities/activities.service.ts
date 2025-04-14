@@ -4,7 +4,10 @@ import { Activity } from './schemas/activity.schema';
 import { ActivitiesRepositoryInterface } from 'src/core/repositories/interfaces/activities.interface';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
+import {
+  FilterMap,
+  QueryBuilderUtil,
+} from 'src/common/utils/query-builder.util';
 import { QueryActivityDto } from './dto/query-activity.dto';
 
 @Injectable()
@@ -15,12 +18,23 @@ export class ActivitiesService extends BaseServiceAbstract<Activity> {
     @Inject('ActivitiesRepositoryInterface')
     protected readonly activitiesRepository: ActivitiesRepositoryInterface,
     protected readonly httpService: HttpService,
-    protected readonly configService: ConfigService,
+    protected readonly configService: ConfigService
   ) {
-    super(activitiesRepository, httpService, configService, new Logger(ActivitiesService.name));
+    super(
+      activitiesRepository,
+      httpService,
+      configService,
+      new Logger(ActivitiesService.name)
+    );
   }
 
-  async findAll({ ticketId, query }: { ticketId: string; query: QueryActivityDto }) {
+  async findAll({
+    ticketId,
+    query,
+  }: {
+    ticketId: string;
+    query: QueryActivityDto;
+  }) {
     const filterMap: FilterMap = {
       ticket: 'ticket',
       type: 'type',
@@ -28,7 +42,7 @@ export class ActivitiesService extends BaseServiceAbstract<Activity> {
     };
     const conditions = QueryBuilderUtil.buildFilterConditions(
       { ...query, ticket: ticketId },
-      filterMap,
+      filterMap
     );
     const options = QueryBuilderUtil.buildQueryOptions(query);
     const populateOptions = {
