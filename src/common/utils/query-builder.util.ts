@@ -25,9 +25,9 @@ export class QueryBuilderUtil {
   }
 
   static buildQueryOptions(query: Record<string, any>): Record<string, any> {
-    const page = parseInt(query.page) || 1;
+    const page = Math.max(0, parseInt(query.page) || 0);
     const limit = parseInt(query.size) || 10;
-    const skip = (page - 1) * limit;
+    const skip = page * limit;
 
     return {
       page,

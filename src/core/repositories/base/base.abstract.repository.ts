@@ -36,7 +36,7 @@ export abstract class BaseRepositoryAbstract<T extends BaseSchema>
       this.model.find({ ...condition, deletedAt: null }, options?.projection, options),
     ]);
 
-    const page = options?.page || 1;
+    const page = options?.page || 0;
     const limit = options?.limit || 10;
     const totalPages = Math.ceil(count / limit);
 
@@ -50,14 +50,14 @@ export abstract class BaseRepositoryAbstract<T extends BaseSchema>
         },
         pageSize: limit,
         pageNumber: page,
-        offset: (page - 1) * limit,
+        offset: page * limit,
         paged: items.length > 0,
         unpaged: items.length === 0,
       },
-      last: page >= totalPages,
+      last: page >= totalPages - 1,
       totalPages: totalPages,
       totalElements: count,
-      first: page === 1,
+      first: page === 0,
       numberOfElements: items.length,
       size: limit,
       number: page,
