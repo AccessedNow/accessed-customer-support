@@ -5,7 +5,6 @@ import {
   HttpStatus,
   Param,
   Post,
-  Patch,
   Version,
   Delete,
   Query,
