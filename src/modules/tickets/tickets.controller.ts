@@ -9,7 +9,7 @@ import {
   Version,
   Delete,
   Query,
-  HttpCode,
+  HttpCode, Put,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
@@ -437,7 +437,7 @@ export class TicketsController {
     return this.ticketsService.findOneById(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({
     summary: 'Update a ticket',
     description:
