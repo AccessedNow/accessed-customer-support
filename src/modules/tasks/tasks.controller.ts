@@ -4,20 +4,14 @@ import {
   Param,
   Delete,
   Body,
-  Patch,
   Post,
   Version,
   Query,
   HttpCode,
   HttpStatus,
+  Put,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { FilterTaskDto } from './dto/filter-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -173,7 +167,7 @@ export class TasksController {
   getTasks(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @Query() pageSortDto: PageSortDto,
-    @Body() filterTaskDto: FilterTaskDto
+    @Body() filterTaskDto: FilterTaskDto,
   ) {
     const query = { ...pageSortDto, ...filterTaskDto };
     return this.tasksService.findAll({ ticketId, query });
@@ -239,7 +233,7 @@ export class TasksController {
   @Version('1')
   getTaskById(
     @Param('id', ParseMongoIdPipe) id: string,
-    @Param('ticketId', ParseMongoIdPipe) ticketId: string
+    @Param('ticketId', ParseMongoIdPipe) ticketId: string,
   ) {
     return this.tasksService.findOneById({ id, ticketId });
   }
@@ -324,13 +318,13 @@ export class TasksController {
   createTask(
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @Body() createTaskDto: CreateTaskDto,
-    @User() user: any
+    @User() user: any,
   ) {
     const taskData = { ...createTaskDto, ticket: ticketId };
     return this.tasksService.createTask(taskData, user);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({
     summary: 'Update a task by ID',
     description: 'Updates an existing task with new information',
@@ -412,7 +406,7 @@ export class TasksController {
     @Param('id', ParseMongoIdPipe) id: string,
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
     @User() user: any,
-    @Body() updateTaskDto: UpdateTaskDto
+    @Body() updateTaskDto: UpdateTaskDto,
   ) {
     return this.tasksService.updateTask({
       id,
@@ -466,8 +460,8 @@ export class TasksController {
   deleteTask(
     @Param('id', ParseMongoIdPipe) id: string,
     @Param('ticketId', ParseMongoIdPipe) ticketId: string,
-    @User() user: any
+    @User() user: any,
   ) {
-    return this.tasksService.permanentDelete({ id, ticketId, user });
+    return this.tasksService.softDelete({ id, ticketId, user });
   }
 }
