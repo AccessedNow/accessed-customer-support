@@ -17,8 +17,10 @@ async function bootstrap() {
   const corsEnabled = configService.get<boolean>('app.corsEnabled');
   const corsOrigins = configService.get<string[]>('app.corsOrigins');
 
-  // Set global API prefix
-  app.setGlobalPrefix(apiPrefix);
+  // Set global API prefix with exclusions for root and health routes
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: ['', 'health'],
+  });
 
   // Enable API versioning
   app.enableVersioning({
@@ -89,5 +91,7 @@ async function bootstrap() {
 
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}/${apiPrefix}`);
+  logger.log(`Root endpoint: http://localhost:${port}`);
+  logger.log(`Health check endpoint: http://localhost:${port}/health`);
 }
 bootstrap();

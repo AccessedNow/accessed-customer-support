@@ -1,32 +1,16 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Ticket } from './schemas/ticket.schema';
 import { TicketsRepositoryInterface } from 'src/core/repositories/interfaces/tickets.interface';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindAllResponse } from 'src/common/types/common.type';
 import { ActivitiesService } from '../activities/activities.service';
-import {
-  TicketStatus,
-  Priority,
-  TICKET_TYPE_PREFIX_MAP,
-} from 'src/common/enums/ticket.enum';
+import { TicketStatus, Priority, TICKET_TYPE_PREFIX_MAP } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
-import {
-  ActivityLogType,
-  ActivityType,
-} from '../activities/schemas/activity.schema';
+import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { SLA_CONFIG } from 'src/common/constants/sla-config';
 import { CustomersService } from '../customers/customers.service';
-import {
-  FilterMap,
-  QueryBuilderUtil,
-} from 'src/common/utils/query-builder.util';
+import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { TicketCounterRepository } from 'src/core/repositories/ticket-counter.repository';
@@ -47,19 +31,14 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     private readonly customersService: CustomersService,
     private readonly ticketCounterRepository: TicketCounterRepository,
     private readonly filesService: FilesService,
-    private readonly employeesService: EmployeesService
+    private readonly employeesService: EmployeesService,
   ) {
-    super(
-      ticketsRepository,
-      httpService,
-      configService,
-      new Logger(TicketsService.name)
-    );
+    super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
 
   async create(createTicketDto: CreateTicketDto) {
     const customer = await this.employeesService.findEmployeeFromPartyService(
-      createTicketDto.customerId
+      createTicketDto.customerId,
     );
     const prefix = TICKET_TYPE_PREFIX_MAP[createTicketDto.ticketType] || 'OT';
     const sequence = await this.ticketCounterRepository.getNextSequence(prefix);
@@ -69,12 +48,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       TICKET_TYPE_PRIORITY_MAP[createTicketDto.ticketType] ||
       Priority.LOW;
     const sla = SLA_CONFIG[priority];
-    const firstResponseDue = new Date(
-      new Date().getTime() + sla.firstResponse * 60 * 60 * 1000
-    );
-    const resolutionDue = new Date(
-      new Date().getTime() + sla.resolution * 60 * 60 * 1000
-    );
+    const firstResponseDue = new Date(new Date().getTime() + sla.firstResponse * 60 * 60 * 1000);
+    const resolutionDue = new Date(new Date().getTime() + sla.resolution * 60 * 60 * 1000);
 
     // Handle assignee and followers
     const [assignee, followers] = await Promise.all([
@@ -134,8 +109,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     if (createTicketDto.files && createTicketDto.files.length > 0) {
       await Promise.all(
         createTicketDto.files.map((file) =>
-          this.filesService.create({ file, ticketId: ticket._id.toString() })
-        )
+          this.filesService.create({ file, ticketId: ticket._id.toString() }),
+        ),
       );
     }
 
@@ -148,8 +123,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
 
     try {
-      const assignee =
-        await this.employeesService.findEmployeeFromPartyService(assigneeId);
+      const assignee = await this.employeesService.findEmployeeFromPartyService(assigneeId);
       if (!assignee) {
         throw new NotFoundException(`Assignee with ID ${assigneeId} not found`);
       }
@@ -167,8 +141,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
     const followers = [];
     for (const id of followerIds) {
-      const follower =
-        await this.employeesService.findEmployeeFromPartyService(id);
+      const follower = await this.employeesService.findEmployeeFromPartyService(id);
       if (follower) {
         followers.push(follower);
       }
@@ -201,48 +174,60 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       populate: [
         {
           path: 'activities',
-          select: 'type description createdAt createdBy metadata',
-          options: { sort: { createdAt: -1 }, limit: 3 },
+          select: 'type description createdAt createdBy metadata deletedAt',
+          options: { sort: { createdAt: -1 }, limit: 4, match: { deletedAt: null } },
         },
         {
           path: 'tasks',
-          select: 'title status priority dueDate',
-          options: { sort: { createdAt: -1 }, limit: 3 },
+          select: 'title status priority dueDate deletedAt',
+          options: { sort: { createdAt: -1 }, limit: 4, match: { deletedAt: null } },
         },
         {
           path: 'notes',
-          select: 'content createdAt createdBy files',
-          options: { sort: { createdAt: -1 }, limit: 3 },
+          select: 'content createdAt createdBy files deletedAt',
+          options: { sort: { createdAt: -1 }, limit: 4, match: { deletedAt: null } },
           populate: {
             path: 'files',
-            select: 'fileId fileType path createdAt',
-            options: { sort: { createdAt: -1 } },
+            select: 'fileId fileType path createdAt deletedAt',
+            options: { sort: { createdAt: -1 }, limit: 4, match: { deletedAt: null } },
           },
         },
         {
           path: 'files',
-          select: 'fileId path fileType',
-          options: { sort: { createdAt: -1 }, limit: 3, match: { note: null } },
+          select: 'fileId path fileType deletedAt',
+          options: { sort: { createdAt: -1 }, limit: 4, match: { note: null, deletedAt: null } },
         },
       ],
     };
 
-    const ticket = await this.ticketsRepository.findOneById(
-      id,
-      null,
-      populateOptions
-    );
+    const ticket = await this.ticketsRepository.findOneById(id, null, populateOptions);
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
     }
 
-    return ticket;
+    const plainTicket = this.transformTicketResponse(ticket);
+    const collections = ['activities', 'tasks', 'notes', 'files'];
+    const displayLimit = 3;
+
+    collections.forEach((collection) => {
+      if (plainTicket[collection] && Array.isArray(plainTicket[collection])) {
+        const totalFetched = plainTicket[collection].length;
+        const hasMore = totalFetched > displayLimit;
+
+        // Only return the display limit
+        plainTicket[collection] = {
+          data: plainTicket[collection].slice(0, displayLimit),
+          hasMore: hasMore,
+        };
+      }
+    });
+
+    return plainTicket;
   }
 
-  async update(id: string, updateTicketDto: Partial<Ticket>) {
+  async update(id: string, updateTicketDto: Partial<Ticket>): Promise<Ticket> {
     const userId = (updateTicketDto as any).userId;
-    const createdBy =
-      await this.employeesService.findEmployeeFromPartyService(userId);
+    const createdBy = await this.employeesService.findEmployeeFromPartyService(userId);
 
     const ticket = await this.ticketsRepository.findOneById(id);
     if (!ticket) {
@@ -251,34 +236,27 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
     const changes: Record<string, { from: any; to: any }> = {};
     const updateData: Record<string, any> = {};
+    let activity = null;
 
     const basicFields = ['subject', 'message', 'ticketType'];
     for (const field of basicFields) {
-      if (
-        updateTicketDto[field] !== undefined &&
-        updateTicketDto[field] !== ticket[field]
-      ) {
+      if (updateTicketDto[field] !== undefined && updateTicketDto[field] !== ticket[field]) {
         changes[field] = { from: ticket[field], to: updateTicketDto[field] };
         updateData[field] = updateTicketDto[field];
       }
     }
 
     if (updateTicketDto.status && updateTicketDto.status !== ticket.status) {
-      if (
-        !this.isValidStatusTransition(ticket.status, updateTicketDto.status)
-      ) {
+      if (!this.isValidStatusTransition(ticket.status, updateTicketDto.status)) {
         throw new BadRequestException(
-          `Invalid status transition from ${ticket.status} to ${updateTicketDto.status}`
+          `Invalid status transition from ${ticket.status} to ${updateTicketDto.status}`,
         );
       }
       changes['status'] = { from: ticket.status, to: updateTicketDto.status };
       updateData['status'] = updateTicketDto.status;
     }
 
-    if (
-      updateTicketDto.priority &&
-      updateTicketDto.priority !== ticket.priority
-    ) {
+    if (updateTicketDto.priority && updateTicketDto.priority !== ticket.priority) {
       changes['priority'] = {
         from: ticket.priority,
         to: updateTicketDto.priority,
@@ -289,8 +267,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const assigneeId = (updateTicketDto as any).assigneeId;
     if (
       assigneeId &&
-      (!ticket?.assignee?.assigneeId ||
-        assigneeId !== ticket.assignee?.assigneeId)
+      (!ticket?.assignee?.assigneeId || assigneeId !== ticket.assignee?.assigneeId)
     ) {
       const assignee = await this.handleAssignee(assigneeId);
       changes['assigneeId'] = {
@@ -310,51 +287,66 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const files = (updateTicketDto as any).files;
     if (files && files.length > 0) {
       await Promise.all(
-        files.map((file) =>
-          this.filesService.create({ file, ticketId: ticket._id.toString() })
-        )
+        files.map((file) => this.filesService.create({ file, ticketId: ticket._id.toString() })),
       );
 
-      await this.createFileAddedActivity(
-        ticket._id.toString(),
-        files.length,
-        createdBy
-      );
+      // Add files to the changes collection
+      changes['files'] = {
+        from: [],
+        to: files.map((file) => file.originalname || file.name),
+      };
     }
 
-    if ((updateTicketDto as any).userId) {
-      await this.createUpdateActivity(
-        ticket._id.toString(),
-        changes,
-        createdBy
-      );
+    if ((updateTicketDto as any).userId && Object.keys(changes).length > 0) {
+      activity = await this.createUpdateActivity(ticket._id.toString(), changes, createdBy);
     }
+
     if (Object.keys(changes).length === 0) {
       return ticket;
     }
     const updatedTicket = await this.ticketsRepository.update(id, updateData);
-    return updatedTicket;
+
+    // Convert Mongoose document to plain object and return only necessary data
+    const plainTicket = this.transformTicketResponse(updatedTicket);
+
+    // Add activity to the response without changing the return type
+    (plainTicket as any).activity = activity;
+
+    return plainTicket as Ticket;
+  }
+
+  /**
+   * Transform Mongoose document to plain object
+   */
+  private transformTicketResponse(ticket: any): Record<string, any> {
+    // If it's a Mongoose document with toJSON method
+    if (ticket && typeof ticket.toJSON === 'function') {
+      return ticket.toJSON();
+    }
+
+    // If it already has _doc property (Mongoose internal)
+    if (ticket && ticket._doc) {
+      return { ...ticket._doc };
+    }
+
+    // Otherwise return as is
+    return ticket;
   }
 
   async softDelete(id: string) {
-    const ticket = await this.ticketsRepository.findOneById(id);
+    const ticket = await this.ticketsRepository.softDelete(id);
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
-    ticket.status = TicketStatus.CLOSED;
-    await this.ticketsRepository.update(id, ticket);
+
     return {
       success: true,
-      message: `Ticket ${ticket.ticketId} has been deleted`,
+      message: `Ticket ${id} has been deleted`,
     };
   }
 
-  private async createFileAddedActivity(
-    ticketId: string,
-    fileCount: number,
-    createdBy: Employee
-  ) {
-    await this.activitiesService.create({
+  private async createFileAddedActivity(ticketId: string, fileCount: number, createdBy: Employee) {
+    return await this.activitiesService.create({
       type: ActivityType.ATTACHMENT_ADDED,
       description: `${fileCount} file(s) added to the ticket`,
       ticket: ticketId,
@@ -372,7 +364,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
   private async createUpdateActivity(
     ticketId: string,
     changes: Record<string, { from: any; to: any }>,
-    createdBy: Employee
+    createdBy: Employee,
   ) {
     let activityType = ActivityType.TICKET_UPDATED;
     let activityLogType = ActivityLogType.TICKET_UPDATED;
@@ -393,7 +385,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
 
     // Create the activity entry
-    await this.activitiesService.create({
+    return await this.activitiesService.create({
       type: activityType,
       description,
       ticket: ticketId,
@@ -408,16 +400,9 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     });
   }
 
-  private isValidStatusTransition(
-    fromStatus: string,
-    toStatus: string
-  ): boolean {
+  private isValidStatusTransition(fromStatus: string, toStatus: string): boolean {
     const validTransitions: Record<string, string[]> = {
-      [TicketStatus.OPEN]: [
-        TicketStatus.IN_PROGRESS,
-        TicketStatus.PENDING,
-        TicketStatus.CLOSED,
-      ],
+      [TicketStatus.OPEN]: [TicketStatus.IN_PROGRESS, TicketStatus.PENDING, TicketStatus.CLOSED],
       [TicketStatus.IN_PROGRESS]: [
         TicketStatus.PENDING,
         TicketStatus.RESOLVED,
@@ -469,22 +454,15 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       employeeId: employeeId,
     });
     if (!follower) {
-      const employee =
-        await this.employeesService.findEmployeeFromPartyService(employeeId);
+      const employee = await this.employeesService.findEmployeeFromPartyService(employeeId);
       if (!employee) {
         throw new NotFoundException(`Follower with ID ${employeeId} not found`);
       }
     }
 
     // Check if employee is already a follower
-    if (
-      ticket.followers.some(
-        (followerId) => followerId.toString() === follower._id.toString()
-      )
-    ) {
-      throw new BadRequestException(
-        `Follower ${employeeId} is already following the ticket`
-      );
+    if (ticket.followers.some((followerId) => followerId.toString() === follower._id.toString())) {
+      throw new BadRequestException(`Follower ${employeeId} is already following the ticket`);
     }
 
     // Add follower
@@ -536,20 +514,14 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       throw new NotFoundException(`Follower with ID ${followerId} not found`);
     }
 
-    if (
-      !ticket.followers.some(
-        (followerId) => followerId.toString() === follower._id.toString()
-      )
-    ) {
-      throw new BadRequestException(
-        `Follower ${followerId} is not following the ticket`
-      );
+    if (!ticket.followers.some((followerId) => followerId.toString() === follower._id.toString())) {
+      throw new BadRequestException(`Follower ${followerId} is not following the ticket`);
     }
 
     // Remove follower
     await this.ticketsRepository.update(ticketId, {
       followers: ticket.followers.filter(
-        (followerId) => followerId.toString() !== follower._id.toString()
+        (followerId) => followerId.toString() !== follower._id.toString(),
       ),
     });
 
@@ -568,7 +540,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
           followers: {
             from: ticket.followers,
             to: ticket.followers.filter(
-              (followerId) => followerId.toString() !== follower._id.toString()
+              (followerId) => followerId.toString() !== follower._id.toString(),
             ),
           },
         },

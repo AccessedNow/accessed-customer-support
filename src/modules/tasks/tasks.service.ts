@@ -1,18 +1,9 @@
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Task } from './schemas/task.schema';
 import { TasksRepositoryInterface } from 'src/core/repositories/interfaces/tasks.interface';
 import { FindAllResponse } from 'src/common/types/common.type';
-import {
-  FilterMap,
-  QueryBuilderUtil,
-} from 'src/common/utils/query-builder.util';
+import { FilterMap, QueryBuilderUtil } from 'src/common/utils/query-builder.util';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { Types } from 'mongoose';
@@ -20,10 +11,7 @@ import { TicketsService } from '../tickets/tickets.service';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { ActivitiesService } from '../activities/activities.service';
-import {
-  ActivityLogType,
-  ActivityType,
-} from '../activities/schemas/activity.schema';
+import { Activity, ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { EmployeesService } from '../employees/employees.service';
 import { TaskStatus } from 'src/common/enums/task.enum';
 
@@ -38,14 +26,9 @@ export class TasksService extends BaseServiceAbstract<Task> {
     protected readonly configService: ConfigService,
     private readonly ticketsService: TicketsService,
     private readonly activitiesService: ActivitiesService,
-    private readonly employeesService: EmployeesService
+    private readonly employeesService: EmployeesService,
   ) {
-    super(
-      tasksRepository,
-      httpService,
-      configService,
-      new Logger(TasksService.name)
-    );
+    super(tasksRepository, httpService, configService, new Logger(TasksService.name));
   }
 
   async findAll({
@@ -64,19 +47,10 @@ export class TasksService extends BaseServiceAbstract<Task> {
     const conditions = QueryBuilderUtil.buildFilterConditions(query, filterMap);
     const options = QueryBuilderUtil.buildQueryOptions(query);
 
-    return await this.tasksRepository.findAll(
-      { ...conditions, ticket: ticketId },
-      options
-    );
+    return await this.tasksRepository.findAll({ ...conditions, ticket: ticketId }, options);
   }
 
-  async findOneById({
-    id,
-    ticketId,
-  }: {
-    id: string;
-    ticketId: string;
-  }): Promise<Task> {
+  async findOneById({ id, ticketId }: { id: string; ticketId: string }): Promise<Task> {
     const task = await this.tasksRepository.findOneByCondition({
       _id: id,
       ticket: ticketId,
@@ -86,14 +60,17 @@ export class TasksService extends BaseServiceAbstract<Task> {
     return task;
   }
 
-  async createTask(createTaskDto: CreateTaskDto, user: any): Promise<Task> {
+  async createTask(
+    createTaskDto: CreateTaskDto,
+    user: any,
+  ): Promise<{ newTask: Task; activity: Activity }> {
     const ticket = await this.ticketsService.findOneById(createTaskDto.ticket);
     if (!ticket) {
       throw new NotFoundException('Ticket not found');
     }
 
     const assignee = await this.employeesService.findEmployeeFromPartyService(
-      createTaskDto.assignedTo || user?.id
+      createTaskDto.assignedTo || user?.id,
     );
 
     const taskData = {
@@ -103,7 +80,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
       createdBy: user.id,
     };
 
-    await this.activitiesService.create({
+    const activity = await this.activitiesService.create({
       type: ActivityType.TASK_CREATED,
       description: `Task ${taskData.title} created`,
       createdBy: {
@@ -123,7 +100,8 @@ export class TasksService extends BaseServiceAbstract<Task> {
       },
     });
 
-    return await this.tasksRepository.create(taskData);
+    const newTask = await this.tasksRepository.create(taskData);
+    return { newTask, activity };
   }
 
   async updateTask({
@@ -136,7 +114,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     updateTaskDto: UpdateTaskDto;
     user: any;
     ticketId?: string;
-  }): Promise<Task> {
+  }): Promise<{ taskUpdated: Task; activity: Activity }> {
     const ticket = await this.ticketsService.findOneById(ticketId);
     if (!ticket) throw new NotFoundException('Ticket not found');
 
@@ -188,10 +166,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     }
 
     // Handle due date changes
-    if (
-      updateTaskDto.dueDate &&
-      updateTaskDto.dueDate.toString() !== task.dueDate?.toString()
-    ) {
+    if (updateTaskDto.dueDate && updateTaskDto.dueDate.toString() !== task.dueDate?.toString()) {
       changes['dueDate'] = { from: task.dueDate, to: updateTaskDto.dueDate };
       updateData['dueDate'] =
         typeof updateTaskDto.dueDate === 'string'
@@ -200,10 +175,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     }
 
     // Handle assignee changes with proper type handling
-    if (
-      updateTaskDto.assignedTo === null ||
-      updateTaskDto.assignedTo === 'null'
-    ) {
+    if (updateTaskDto.assignedTo === null || updateTaskDto.assignedTo === 'null') {
       changes['assignedTo'] = {
         from: task.assignedTo,
         to: null,
@@ -214,7 +186,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
       updateTaskDto.assignedTo !== task.assignedTo?.toString()
     ) {
       const employee = await this.employeesService.findEmployeeFromPartyService(
-        updateTaskDto.assignedTo
+        updateTaskDto.assignedTo,
       );
       if (!employee) throw new NotFoundException('Employee not found');
 
@@ -233,10 +205,10 @@ export class TasksService extends BaseServiceAbstract<Task> {
 
     // If no changes, return the existing task
     if (Object.keys(changes).length === 0) {
-      return task;
+      return { taskUpdated: task, activity: null };
     }
 
-    await this.activitiesService.create({
+    const activity = await this.activitiesService.create({
       type: ActivityType.TASK_UPDATED,
       description: `Task ${task.title} updated`,
       createdBy: {
@@ -254,18 +226,11 @@ export class TasksService extends BaseServiceAbstract<Task> {
       },
     });
 
-    return await this.tasksRepository.update(id, updateData);
+    const taskUpdated = await this.tasksRepository.update(id, updateData);
+    return { taskUpdated, activity };
   }
 
-  async permanentDelete({
-    id,
-    ticketId,
-    user,
-  }: {
-    id: string;
-    ticketId: string;
-    user: any;
-  }) {
+  async softDelete({ id, ticketId, user }: { id: string; ticketId: string; user: any }) {
     const task = await this.tasksRepository.findOneByCondition({
       _id: id,
       ticket: ticketId,
@@ -277,7 +242,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     const createdByUser = await this.employeesService.findOneByCondition({
       employeeId: user.id,
     });
-    await this.activitiesService.create({
+    const activity = await this.activitiesService.create({
       type: ActivityType.TASK_DELETED,
       logType: ActivityLogType.TASK_DELETED,
       description: `Task ${task.title} deleted`,
@@ -289,6 +254,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
       ticket: ticketId,
     });
 
-    return await this.tasksRepository.permanentlyDelete(id);
+    const taskDeleted = await this.tasksRepository.softDelete(id);
+    return { taskDeleted, activity };
   }
 }

@@ -82,7 +82,7 @@ TicketSchema.virtual('activities', {
   foreignField: 'ticket',
   options: {
     sort: { createdAt: -1 },
-    limit: 3,
+    match: { deletedAt: null },
   },
 });
 
@@ -90,19 +90,19 @@ TicketSchema.virtual('tasks', {
   ref: 'Task',
   localField: '_id',
   foreignField: 'ticket',
-  options: { sort: { createdAt: -1 } },
+  options: { sort: { createdAt: -1 }, match: { deletedAt: null } },
 });
 
 TicketSchema.virtual('notes', {
   ref: 'Note',
   localField: '_id',
   foreignField: 'ticket',
-  options: { sort: { createdAt: -1 } },
+  options: { sort: { createdAt: -1 }, match: { deletedAt: null } },
   justOne: false,
   populate: {
     path: 'files',
     select: 'fileId fileType path createdAt',
-    options: { sort: { createdAt: -1 } },
+    options: { sort: { createdAt: -1 }, match: { deletedAt: null } },
   },
 });
 
@@ -112,7 +112,7 @@ TicketSchema.virtual('files', {
   foreignField: 'ticket',
   options: {
     sort: { createdAt: -1 },
-    match: { note: null },
+    match: { note: null, deletedAt: null },
   },
 });
 
