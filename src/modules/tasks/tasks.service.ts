@@ -76,7 +76,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     const taskData = {
       ...createTaskDto,
       ticket: ticket._id,
-      assignedTo: assignee._id,
+      assignedTo: assignee.employeeId,
       createdBy: user.id,
     };
 
