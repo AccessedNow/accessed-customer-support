@@ -19,6 +19,6 @@ export class UsersService extends BaseServiceAbstract<User> {
   }
 
   async findUserFromPartyService(userId: string) {
-    return this.findMemberInCompany(userId);
+    return this.findUserInCompany(userId);
   }
 }

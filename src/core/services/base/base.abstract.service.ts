@@ -53,15 +53,15 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
     return await this.repository.softDelete(id);
   }
 
-  protected async findMemberInCompany(id: string) {
+  protected async findUserInCompany(id: string) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
     const token = this.token;
 
-    const entityInDB = await this.repository.findOneByCondition({
+    const user = await this.repository.findOneByCondition({
       partyId: id,
     });
-    if (entityInDB) {
-      return entityInDB;
+    if (user) {
+      return user;
     }
 
     const { data: entityExisting } = await firstValueFrom(
@@ -102,14 +102,14 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
     return entity;
   }
 
-  protected async findCustomerFromPartyService(id: string) {
+  protected async findCustomerFromParty(id: string) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
 
-    const entityInDB = await this.repository.findOneByCondition({
+    const customer = await this.repository.findOneByCondition({
       customerId: id,
     });
-    if (entityInDB) {
-      return entityInDB;
+    if (customer) {
+      return customer;
     }
 
     const { data: entityExisting } = await firstValueFrom(

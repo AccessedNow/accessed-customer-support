@@ -19,6 +19,6 @@ export class CustomersService extends BaseServiceAbstract<Customer> {
   }
 
   async findCustomerFromPartyService(customerId: string) {
-    return this.findCustomerFromPartyService(customerId);
+    return this.findCustomerFromParty(customerId);
   }
 }
