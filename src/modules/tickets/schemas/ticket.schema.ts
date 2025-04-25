@@ -51,6 +51,9 @@ export class Ticket extends BaseSchema {
 
   @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User' })
   followers: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: Object, default: {} })
+  meta: Record<string, any>;
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);

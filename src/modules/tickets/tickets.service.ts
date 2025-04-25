@@ -5,7 +5,12 @@ import { TicketsRepositoryInterface } from 'src/core/repositories/interfaces/tic
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { FindAllResponse } from 'src/common/types/common.type';
 import { ActivitiesService } from '../activities/activities.service';
-import { TicketStatus, Priority, TICKET_TYPE_PREFIX_MAP } from 'src/common/enums/ticket.enum';
+import {
+  TicketStatus,
+  Priority,
+  TICKET_TYPE_PREFIX_MAP,
+  TicketType,
+} from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
 import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { SLA_CONFIG } from 'src/common/constants/sla-config';
@@ -17,6 +22,7 @@ import { TicketCounterRepository } from 'src/core/repositories/ticket-counter.re
 import { FilesService } from '../files/files.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/schemas/user.schema';
+import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class TicketsService extends BaseServiceAbstract<Ticket> {
@@ -54,6 +60,20 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       this.handleAssignee(createTicketDto.assigneeId, createTicketDto.ticketType),
       this.handleFollowers(createTicketDto.followers),
     ]);
+
+    if (
+      createTicketDto.meta?.invoice &&
+      createTicketDto.ticketType === TicketType.SUBSCRIPTION_BILLING
+    ) {
+      const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL');
+      const invoice = await firstValueFrom(
+        this.httpService.get(`${paymentServiceUrl}/api/invoices/${createTicketDto.meta.invoice}`),
+      );
+      if (!invoice?.data) {
+        throw new NotFoundException(`Invoice with ID ${createTicketDto.meta.invoice} not found`);
+      }
+      createTicketDto.meta.invoice = invoice.data;
+    }
 
     const ticketData = {
       ...createTicketDto,

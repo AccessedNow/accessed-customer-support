@@ -75,6 +75,14 @@ export class CreateTicketDto {
   })
   @IsOptional()
   followers?: string[];
+
+  @ApiProperty({
+    description: 'Metadata of the ticket',
+    type: 'object',
+    additionalProperties: true,
+  })
+  @IsOptional()
+  meta?: Record<string, any>;
 }
 
 export class FileDto {
