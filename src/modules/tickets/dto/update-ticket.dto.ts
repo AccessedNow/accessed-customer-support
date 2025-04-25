@@ -22,8 +22,7 @@ export class UpdateTicketDto {
   })
   @IsOptional()
   @IsString()
-  @MinLength(3)
-  @MaxLength(1000)
+  @MinLength(1)
   message?: string;
 
   @ApiProperty({
