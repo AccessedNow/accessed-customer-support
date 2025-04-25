@@ -29,7 +29,7 @@ export class UpdateTicketDto {
   @ApiProperty({
     description: 'Type of ticket',
     enum: TicketType,
-    example: TicketType.SITE_ISSUE,
+    example: TicketType.COMPANY_REVIEWS,
     required: false,
   })
   @IsEnum(TicketType)

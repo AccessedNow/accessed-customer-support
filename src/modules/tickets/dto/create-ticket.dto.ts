@@ -34,8 +34,8 @@ export class CreateTicketDto {
   @ApiProperty({
     description: 'Type of ticket',
     enum: TicketType,
-    example: TicketType.SITE_ISSUE,
-    default: TicketType.SITE_ISSUE,
+    example: TicketType.COMPANY_REVIEWS,
+    default: TicketType.COMPANY_REVIEWS,
   })
   @IsEnum(TicketType)
   @IsNotEmpty()

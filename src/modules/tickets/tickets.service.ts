@@ -51,7 +51,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
     // Handle assignee and followers
     const [assignee, followers] = await Promise.all([
-      this.handleAssignee(createTicketDto.assigneeId),
+      this.handleAssignee(createTicketDto.assigneeId, createTicketDto.ticketType),
       this.handleFollowers(createTicketDto.followers),
     ]);
 
@@ -115,21 +115,44 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     return ticket;
   }
 
-  private async handleAssignee(assigneeId?: string): Promise<User | null> {
-    if (!assigneeId) {
-      return null;
-    }
-
-    try {
+  private async handleAssignee(assigneeId?: string, type?: string): Promise<User | null> {
+    if (assigneeId) {
       const assignee = await this.usersService.findUserFromPartyService(assigneeId);
       if (!assignee) {
         throw new NotFoundException(`Assignee with ID ${assigneeId} not found`);
       }
       return assignee;
-    } catch (error) {
-      this.logger.error(`Error finding assignee: ${error.message}`);
-      throw new BadRequestException(`Invalid assignee ID: ${assigneeId}`);
     }
+
+    const { content: users } = await this.usersService.findAll({
+      components: { $in: [type] },
+    });
+    if (users.length === 0) {
+      return null;
+    }
+
+    if (users.length === 1) {
+      return users[0];
+    }
+
+    const userTicketCounts = await Promise.all(
+      users.map(async (user) => {
+        const { content: tickets } = await this.ticketsRepository.findAll({
+          'assignee.id': user._id.toString(),
+          status: { $ne: TicketStatus.CLOSED },
+        });
+
+        return {
+          user,
+          ticketCount: tickets.length,
+        };
+      }),
+    );
+    userTicketCounts.sort((a, b) => a.ticketCount - b.ticketCount);
+
+    const selectedUser = userTicketCounts[0].user;
+
+    return selectedUser;
   }
 
   private async handleFollowers(followerIds?: string[]): Promise<User[]> {

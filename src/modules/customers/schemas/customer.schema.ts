@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoosePaginate from 'mongoose-paginate-v2';
-import { BaseUserSchema } from 'src/core/schemas/user.schema';
+import { BaseUserSchema } from 'src/core/schemas/base-user.schema';
 
 export type CustomerDocument = Customer & Document;
 

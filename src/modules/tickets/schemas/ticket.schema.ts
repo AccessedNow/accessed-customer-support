@@ -28,7 +28,7 @@ export class Ticket extends BaseSchema {
   @Prop({ required: true })
   message: string;
 
-  @Prop({ required: true, enum: TicketType, default: TicketType.SITE_ISSUE })
+  @Prop({ required: true, enum: TicketType, default: TicketType.COMPANY_REVIEWS })
   ticketType: string;
 
   @Prop({ required: true, enum: Priority, default: Priority.MEDIUM })
@@ -59,8 +59,6 @@ export const TicketSchema = SchemaFactory.createForClass(Ticket);
 TicketSchema.index({ status: 1, priority: 1, ticketType: 1 });
 // Index for customerId because often query by customer
 TicketSchema.index({ customerId: 1 });
-// Index for ticketId (unique)
-TicketSchema.index({ ticketId: 1 }, { unique: true });
 // Index for sort
 TicketSchema.index({ createdAt: -1 });
 // Text index for search

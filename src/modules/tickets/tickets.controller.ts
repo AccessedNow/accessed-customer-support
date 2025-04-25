@@ -166,7 +166,7 @@ export class TicketsController {
         value: {
           status: TicketStatus.OPEN,
           priority: Priority.HIGH,
-          ticketType: TicketType.SITE_ISSUE,
+          ticketType: TicketType.COMPANY_REVIEWS,
         },
       },
     },
