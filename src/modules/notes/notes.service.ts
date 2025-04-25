@@ -12,7 +12,7 @@ import { ActivityLogType, ActivityType } from '../activities/schemas/activity.sc
 import { Types } from 'mongoose';
 import { FilesService } from '../files/files.service';
 import { TicketsService } from '../tickets/tickets.service';
-import { EmployeesService } from '../employees/employees.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class NotesService extends BaseServiceAbstract<Note> {
@@ -26,7 +26,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     private readonly activitiesService: ActivitiesService,
     private readonly filesService: FilesService,
     private readonly ticketsService: TicketsService,
-    private readonly employeesService: EmployeesService,
+    private readonly usersService: UsersService,
   ) {
     super(notesRepository, httpService, configService, new Logger(NotesService.name));
   }
@@ -97,7 +97,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     const ticket = await this.ticketsService.findOneById(ticketId);
     if (!ticket) throw new NotFoundException('Ticket not found');
 
-    const createdBy = await this.employeesService.findEmployeeFromPartyService(user.id);
+    const createdBy = await this.usersService.findUserFromPartyService(user.id);
     const note = await this.notesRepository.create({
       ...createNoteDto,
       ticket: new Types.ObjectId(ticketId),
@@ -155,8 +155,8 @@ export class NotesService extends BaseServiceAbstract<Note> {
     });
     if (!note) throw new NotFoundException('Note not found');
 
-    const updatedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
-    if (!updatedBy) throw new NotFoundException('Employee not found');
+    const updatedBy = await this.usersService.findUserFromPartyService(user.id);
+    if (!updatedBy) throw new NotFoundException('User not found');
 
     if (note.createdBy.id.toString() !== updatedBy._id.toString())
       throw new BadRequestException('You can only update your own notes');
@@ -259,7 +259,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
       ticket: new Types.ObjectId(ticketId),
     });
     if (!noteExists) throw new NotFoundException('Note not found');
-    const deletedBy = await this.employeesService.findEmployeeFromPartyService(user.id);
+    const deletedBy = await this.usersService.findUserFromPartyService(user.id);
     if (noteExists.createdBy.id.toString() !== deletedBy._id.toString())
       throw new BadRequestException('You can only delete your own notes');
 

@@ -9,9 +9,7 @@ import { catchError, firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { REQUEST } from '@nestjs/core';
 
-export abstract class BaseServiceAbstract<T extends BaseSchema>
-  implements BaseServiceInterface<T>
-{
+export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseServiceInterface<T> {
   protected readonly logger: Logger;
   protected readonly httpService: HttpService;
   protected readonly configService: ConfigService;
@@ -21,7 +19,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema>
     protected readonly repository: BaseRepositoryInterface<T>,
     httpService: HttpService,
     configService: ConfigService,
-    logger: Logger
+    logger: Logger,
   ) {
     this.httpService = httpService;
     this.configService = configService;
@@ -36,10 +34,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema>
     return await this.repository.create(create_dto);
   }
 
-  async findAll(
-    filter?: object,
-    options?: object
-  ): Promise<FindAllResponse<T>> {
+  async findAll(filter?: object, options?: object): Promise<FindAllResponse<T>> {
     return await this.repository.findAll(filter, options);
   }
   async findOne(id: string) {
@@ -58,9 +53,17 @@ export abstract class BaseServiceAbstract<T extends BaseSchema>
     return await this.repository.softDelete(id);
   }
 
-  protected async findMemberInCompany(id: string, entityType: string) {
+  protected async findMemberInCompany(id: string) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
     const token = this.token;
+
+    const entityInDB = await this.repository.findOneByCondition({
+      partyId: id,
+    });
+    if (entityInDB) {
+      return entityInDB;
+    }
+
     const { data: entityExisting } = await firstValueFrom(
       this.httpService
         .get<any>(
@@ -69,76 +72,21 @@ export abstract class BaseServiceAbstract<T extends BaseSchema>
             headers: {
               Authorization: `Bearer ${token}`,
             },
-          }
+          },
         )
         .pipe(
           catchError((error: AxiosError) => {
-            this.logger.error(
-              `Failed to fetch ${entityType} data: ${error.message}`
-            );
-            throw new NotFoundException(`Failed to fetch ${entityType} data`);
-          })
-        )
+            this.logger.error(`Failed to fetch user data: ${error.message}`);
+            throw new NotFoundException(`Failed to fetch user data`);
+          }),
+        ),
     );
     if (!entityExisting) {
-      throw new NotFoundException(`${entityType} not found`);
-    }
-    const entityInDB = await this.repository.findOneByCondition({
-      [`${entityType.toLowerCase()}Id`]: entityExisting.data.id,
-    });
-
-    if (entityInDB) {
-      // Compare fields and update if different
-      const updateData: Partial<T> = {};
-      const fieldsToCompare = [
-        'name',
-        'firstName',
-        'lastName',
-        'email',
-        'phoneNumber',
-        'avatar',
-        'status',
-        'countryCode',
-        'isoCode2',
-        'timezone',
-      ];
-
-      // Map party service fields to our db fields
-      const fieldMapping = {
-        email: entityExisting.data.primaryEmail?.value,
-        phoneNumber: entityExisting.data.primaryPhone?.value,
-      };
-
-      let hasChanges = false;
-
-      for (const field of fieldsToCompare) {
-        const partyValue =
-          fieldMapping[field] !== undefined
-            ? fieldMapping[field]
-            : entityExisting.data[field];
-
-        if (partyValue !== undefined && partyValue !== entityInDB[field]) {
-          updateData[field] = partyValue;
-          hasChanges = true;
-        }
-      }
-
-      // If there are changes, update the entity
-      if (hasChanges) {
-        this.logger.log(
-          `Updating ${entityType} with id ${entityInDB._id} with latest data from party service`
-        );
-        return await this.repository.update(
-          entityInDB._id.toString(),
-          updateData
-        );
-      }
-
-      return entityInDB;
+      throw new NotFoundException(`User not found`);
     }
 
     const entity = await this.repository.create({
-      [`${entityType.toLowerCase()}Id`]: entityExisting.data.id,
+      partyId: entityExisting.data.id,
       name: entityExisting.data.name,
       firstName: entityExisting.data.firstName,
       lastName: entityExisting.data.lastName,
@@ -154,78 +102,30 @@ export abstract class BaseServiceAbstract<T extends BaseSchema>
     return entity;
   }
 
-  protected async findFromPartyService(id: string, entityType: string) {
+  protected async findCustomerFromPartyService(id: string) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
-    const { data: entityExisting } = await firstValueFrom(
-      this.httpService.get<any>(`${partyServiceUrl}/api/user/${id}`).pipe(
-        catchError((error: AxiosError) => {
-          this.logger.error(
-            `Failed to fetch ${entityType} data: ${error.message}`
-          );
-          throw new NotFoundException(`Failed to fetch ${entityType} data`);
-        })
-      )
-    );
-    if (!entityExisting) {
-      throw new NotFoundException(`${entityType} not found`);
-    }
 
     const entityInDB = await this.repository.findOneByCondition({
-      [`${entityType.toLowerCase()}Id`]: entityExisting.data.id,
+      customerId: id,
     });
-
     if (entityInDB) {
-      // Compare fields and update if different
-      const updateData: Partial<T> = {};
-      const fieldsToCompare = [
-        'name',
-        'firstName',
-        'lastName',
-        'email',
-        'phoneNumber',
-        'avatar',
-        'status',
-        'countryCode',
-        'isoCode2',
-        'timezone',
-      ];
-
-      // Map party service fields to our db fields
-      const fieldMapping = {
-        email: entityExisting.data.primaryEmail?.value,
-        phoneNumber: entityExisting.data.primaryPhone?.value,
-      };
-
-      let hasChanges = false;
-
-      for (const field of fieldsToCompare) {
-        const partyValue =
-          fieldMapping[field] !== undefined
-            ? fieldMapping[field]
-            : entityExisting.data[field];
-
-        if (partyValue !== undefined && partyValue !== entityInDB[field]) {
-          updateData[field] = partyValue;
-          hasChanges = true;
-        }
-      }
-
-      // If there are changes, update the entity
-      if (hasChanges) {
-        this.logger.log(
-          `Updating ${entityType} with id ${entityInDB._id} with latest data from party service`
-        );
-        return await this.repository.update(
-          entityInDB._id.toString(),
-          updateData
-        );
-      }
-
       return entityInDB;
     }
 
+    const { data: entityExisting } = await firstValueFrom(
+      this.httpService.get<any>(`${partyServiceUrl}/api/user/${id}`).pipe(
+        catchError((error: AxiosError) => {
+          this.logger.error(`Failed to fetch customer data: ${error.message}`);
+          throw new NotFoundException(`Failed to fetch customer data`);
+        }),
+      ),
+    );
+    if (!entityExisting) {
+      throw new NotFoundException(`Customer not found`);
+    }
+
     const entity = await this.repository.create({
-      [`${entityType.toLowerCase()}Id`]: entityExisting.data.id,
+      customerId: entityExisting.data.id,
       name: entityExisting.data.name,
       firstName: entityExisting.data.firstName,
       lastName: entityExisting.data.lastName,

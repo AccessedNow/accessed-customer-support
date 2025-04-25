@@ -3,17 +3,17 @@ import { Document } from 'mongoose';
 import * as mongoosePaginate from 'mongoose-paginate-v2';
 import { BaseUserSchema } from 'src/core/schemas/user.schema';
 
-export type CustomerDocument = Customer & Document;
+export type UserDocument = User & Document;
 
 @Schema({
   timestamps: true,
   versionKey: false,
 })
-export class Customer extends BaseUserSchema {
+export class User extends BaseUserSchema {
   @Prop({ required: true })
-  customerId: string;
+  partyId: string;
 }
 
-export const CustomerSchema = SchemaFactory.createForClass(Customer);
+export const UserSchema = SchemaFactory.createForClass(User);
 
-CustomerSchema.plugin(mongoosePaginate);
+UserSchema.plugin(mongoosePaginate);

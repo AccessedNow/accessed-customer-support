@@ -2,7 +2,7 @@ import { Prop } from '@nestjs/mongoose';
 import { BaseSchema } from './base/base.schema';
 import { UserStatus } from 'src/common/enums/status.enum';
 
-export class UserSchema extends BaseSchema {
+export class BaseUserSchema extends BaseSchema {
   @Prop({ required: true })
   name: string;
 

@@ -49,7 +49,7 @@ export class Ticket extends BaseSchema {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer' })
   createdBy: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'Employee' })
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User' })
   followers: MongooseSchema.Types.ObjectId[];
 }
 

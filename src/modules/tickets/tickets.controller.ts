@@ -8,7 +8,8 @@ import {
   Version,
   Delete,
   Query,
-  HttpCode, Put,
+  HttpCode,
+  Put,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
@@ -334,7 +335,7 @@ export class TicketsController {
             avatar: '',
           },
           subject: 'New Email Account Setup',
-          message: 'Request to create an official email account for a new employee.',
+          message: 'Request to create an official email account for a new user.',
           ticketType: 'SERVICE_REQUEST',
           priority: 'MEDIUM',
           status: 'OPEN',
@@ -474,7 +475,7 @@ export class TicketsController {
             avatar: '',
           },
           subject: 'New Email Account Setup',
-          message: 'Request to create an official email account for a new employee.',
+          message: 'Request to create an official email account for a new user.',
           ticketType: 'SERVICE_REQUEST',
           priority: 'MEDIUM',
           status: 'CLOSED',
@@ -652,13 +653,13 @@ export class TicketsController {
             name: 'ban  HR',
             avatar:
               'https://accessed.s3.us-west-2.amazonaws.com/user/4:6db934cb-9aba-4675-a007-eb0d31c51391:487/avatar/person_4:6db934cb-9aba-4675-a007-eb0d31c51391:487_1743746118020.jpg',
-            employeeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
+            partyId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
           },
           {
             _id: '67f64e794c4ede7c2f80347c',
             name: 'Mỹ Tâm Hồ',
             avatar: '',
-            employeeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:1493',
+            partyId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:1493',
           },
         ],
         code: 200,
@@ -679,18 +680,18 @@ export class TicketsController {
   @Post(':id/followers')
   @ApiOperation({ summary: 'Add a new follower to a ticket' })
   @ApiBody({
-    description: 'Employee ID to add as follower',
+    description: 'User ID to add as follower',
     required: true,
     schema: {
       type: 'object',
       properties: {
-        employeeId: {
+        partyId: {
           type: 'string',
           example: '4:6db934cb-9aba-4675-a007-eb0d31c51391:487',
-          description: 'The ID of the employee to add as a follower',
+          description: 'The ID of the user to add as a follower',
         },
       },
-      required: ['employeeId'],
+      required: ['partyId'],
     },
   })
   @ApiResponse({
@@ -710,7 +711,7 @@ export class TicketsController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Ticket or employee not found',
+    description: 'Ticket or user not found',
     schema: {
       example: {
         data: {
@@ -725,16 +726,16 @@ export class TicketsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Employee is already a follower',
+    description: 'User is already a follower',
   })
   @RequirePrivileges('UPDATE_TICKETS')
   @Version('1')
   async addFollower(
     @Param('id') ticketId: string,
-    @Body('employeeId') employeeId: string,
+    @Body('partyId') partyId: string,
     @User() user: any,
   ) {
-    return this.ticketsService.addFollower(ticketId, employeeId, user.id);
+    return this.ticketsService.addFollower(ticketId, partyId, user.id);
   }
 
   @Delete(':id/followers/:followerId')

@@ -8,7 +8,7 @@ import { NotesRepository } from 'src/core/repositories/notes.repository';
 import { ActivitiesModule } from '../activities/activities.module';
 import { FilesModule } from '../files/files.module';
 import { TicketsModule } from '../tickets/tickets.module';
-import { EmployeesModule } from '../employees/employees.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { EmployeesModule } from '../employees/employees.module';
     ActivitiesModule,
     FilesModule,
     TicketsModule,
-    EmployeesModule,
+    UsersModule,
   ],
   controllers: [NotesController],
   providers: [NotesService, { provide: 'NotesRepositoryInterface', useClass: NotesRepository }],
