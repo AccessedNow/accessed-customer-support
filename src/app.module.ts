@@ -17,6 +17,7 @@ import { AuthInterceptor } from './common/interceptors/auth.interceptor';
 import { TokenService } from './common/services/token.service';
 import { FilesModule } from './modules/files/files.module';
 import { AppController } from './app.controller';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { AppController } from './app.controller';
     NotesModule,
     CustomersModule,
     FilesModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [

@@ -27,15 +27,14 @@ export class CreateTicketDto {
   })
   @IsNotEmpty()
   @IsString()
-  @MinLength(3)
-  @MaxLength(1000)
+  @MinLength(1)
   message: string;
 
   @ApiProperty({
     description: 'Type of ticket',
     enum: TicketType,
-    example: TicketType.SITE_ISSUE,
-    default: TicketType.SITE_ISSUE,
+    example: TicketType.COMPANY_REVIEWS,
+    default: TicketType.COMPANY_REVIEWS,
   })
   @IsEnum(TicketType)
   @IsNotEmpty()
@@ -75,6 +74,14 @@ export class CreateTicketDto {
   })
   @IsOptional()
   followers?: string[];
+
+  @ApiProperty({
+    description: 'Metadata of the ticket',
+    type: 'object',
+    additionalProperties: true,
+  })
+  @IsOptional()
+  meta?: Record<string, any>;
 }
 
 export class FileDto {

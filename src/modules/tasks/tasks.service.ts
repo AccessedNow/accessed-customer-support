@@ -12,8 +12,8 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { ActivitiesService } from '../activities/activities.service';
 import { Activity, ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
-import { EmployeesService } from '../employees/employees.service';
 import { TaskStatus } from 'src/common/enums/task.enum';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class TasksService extends BaseServiceAbstract<Task> {
@@ -26,7 +26,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     protected readonly configService: ConfigService,
     private readonly ticketsService: TicketsService,
     private readonly activitiesService: ActivitiesService,
-    private readonly employeesService: EmployeesService,
+    private readonly usersService: UsersService,
   ) {
     super(tasksRepository, httpService, configService, new Logger(TasksService.name));
   }
@@ -69,14 +69,22 @@ export class TasksService extends BaseServiceAbstract<Task> {
       throw new NotFoundException('Ticket not found');
     }
 
-    const assignee = await this.employeesService.findEmployeeFromPartyService(
+    const assignee = await this.usersService.findUserFromPartyService(
       createTaskDto.assignedTo || user?.id,
     );
 
     const taskData = {
       ...createTaskDto,
       ticket: ticket._id,
-      assignedTo: assignee.employeeId,
+      assignedTo: assignee?._id,
+      assignee: assignee
+        ? {
+            id: assignee._id,
+            partyId: assignee.partyId,
+            name: assignee.name,
+            avatar: assignee.avatar,
+          }
+        : null,
       createdBy: user.id,
     };
 
@@ -124,8 +132,8 @@ export class TasksService extends BaseServiceAbstract<Task> {
     });
     if (!task) throw new NotFoundException('Task not found');
 
-    const completedByUser = await this.employeesService.findOneByCondition({
-      employeeId: user.id,
+    const completedByUser = await this.usersService.findOneByCondition({
+      partyId: user.id,
     });
 
     const changes: Record<string, { from: any; to: any }> = {};
@@ -185,22 +193,20 @@ export class TasksService extends BaseServiceAbstract<Task> {
       updateTaskDto.assignedTo &&
       updateTaskDto.assignedTo !== task.assignedTo?.toString()
     ) {
-      const employee = await this.employeesService.findEmployeeFromPartyService(
-        updateTaskDto.assignedTo,
-      );
-      if (!employee) throw new NotFoundException('Employee not found');
+      const user = await this.usersService.findUserFromPartyService(updateTaskDto.assignedTo);
+      if (!user) throw new NotFoundException('User not found');
 
       changes['assignedTo'] = {
         from: task.assignedTo,
-        to: employee._id,
+        to: user._id,
       };
       updateData['assignee'] = {
-        id: employee._id?.toString(),
-        employeeId: employee.employeeId,
-        name: employee.name,
-        avatar: employee.avatar,
+        id: user._id?.toString(),
+        party: user.partyId,
+        name: user.name,
+        avatar: user.avatar,
       };
-      updateData['assignedTo'] = new Types.ObjectId(employee._id.toString());
+      updateData['assignedTo'] = new Types.ObjectId(user._id.toString());
     }
 
     // If no changes, return the existing task
@@ -239,8 +245,8 @@ export class TasksService extends BaseServiceAbstract<Task> {
     if (task.status === TaskStatus.COMPLETED)
       throw new BadRequestException('Cannot delete completed task');
 
-    const createdByUser = await this.employeesService.findOneByCondition({
-      employeeId: user.id,
+    const createdByUser = await this.usersService.findOneByCondition({
+      partyId: user.id,
     });
     const activity = await this.activitiesService.create({
       type: ActivityType.TASK_DELETED,

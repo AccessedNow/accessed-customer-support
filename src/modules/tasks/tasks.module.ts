@@ -7,14 +7,15 @@ import { TasksService } from './tasks.service';
 import { TasksRepository } from 'src/core/repositories/tasks.repository';
 import { TicketsModule } from '../tickets/tickets.module';
 import { ActivitiesModule } from '../activities/activities.module';
-import { EmployeesModule } from '../employees/employees.module';
+import { UsersModule } from '../users/users.module';
+
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Task.name, schema: TaskSchema }]),
     HttpModule,
     TicketsModule,
     ActivitiesModule,
-    EmployeesModule,
+    UsersModule,
   ],
   controllers: [TasksController],
   providers: [TasksService, { provide: 'TasksRepositoryInterface', useClass: TasksRepository }],

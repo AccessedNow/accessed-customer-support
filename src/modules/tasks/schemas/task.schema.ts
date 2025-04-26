@@ -21,7 +21,7 @@ export class Task extends BaseSchema {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Ticket', required: true })
   ticket: MongooseSchema.Types.ObjectId;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Employee', default: null })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', default: null })
   assignedTo: MongooseSchema.Types.ObjectId;
 
   @Prop({ type: Object, default: {} })

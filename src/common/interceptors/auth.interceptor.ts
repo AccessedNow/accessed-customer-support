@@ -13,12 +13,14 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { REQUIRED_PRIVILEGES_KEY } from '../decorators/require-privileges.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { AUTH_ONLY_KEY } from '../decorators/auth-only.decorator';
+import { UsersService } from 'src/modules/users/users.service';
 
 @Injectable()
 export class AuthInterceptor implements NestInterceptor {
   constructor(
     private readonly tokenService: TokenService,
     private readonly reflector: Reflector,
+    private readonly usersService: UsersService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -42,6 +44,14 @@ export class AuthInterceptor implements NestInterceptor {
     const user = this.tokenService.decodeToken(token);
     if (!user) {
       throw new UnauthorizedException('Invalid token payload');
+    }
+
+    if (!user.id) {
+      throw new UnauthorizedException('Invalid token payload: missing user info');
+    }
+    const userInParty = this.usersService.findUserFromPartyService(user.id);
+    if (!userInParty) {
+      throw new UnauthorizedException('User not found');
     }
 
     // Add token to request

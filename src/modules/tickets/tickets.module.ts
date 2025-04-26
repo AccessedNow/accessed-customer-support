@@ -10,7 +10,7 @@ import { TicketCounterRepository } from 'src/core/repositories/ticket-counter.re
 import { ActivitiesModule } from '../activities/activities.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FilesModule } from '../files/files.module';
-import { EmployeesModule } from '../employees/employees.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -22,7 +22,7 @@ import { EmployeesModule } from '../employees/employees.module';
     ActivitiesModule,
     CustomersModule,
     FilesModule,
-    EmployeesModule,
+    UsersModule,
   ],
   controllers: [TicketsController],
   providers: [
