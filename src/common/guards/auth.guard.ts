@@ -13,6 +13,7 @@ import { AxiosError } from 'axios';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { TokenService } from '../services/token.service';
+import { UsersService } from 'src/modules/users/users.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -23,6 +24,7 @@ export class AuthGuard implements CanActivate {
     private readonly configService: ConfigService,
     private readonly reflector: Reflector,
     private readonly tokenService: TokenService,
+    private readonly usersService: UsersService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,11 +55,9 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid token payload: missing user info');
     }
 
-    // Add token and user to request for use in interceptors or controllers
     request.token = token;
     request.user = user;
 
-    // Only attempt to validate user in party service if PARTY_SERVICE_URL is configured
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
     if (!partyServiceUrl) {
       this.logger.warn('PARTY_SERVICE_URL not configured, skipping user validation');
@@ -74,8 +74,7 @@ export class AuthGuard implements CanActivate {
         this.logger.warn(
           `User ${user.id} not found in party service, but allowing request to continue`,
         );
-        // We'll allow the request to continue but log the warning
-        return true;
+        throw new UnauthorizedException('User not found');
       }
 
       this.logger.log(`User ${user.id} successfully validated with party service`);
@@ -84,13 +83,16 @@ export class AuthGuard implements CanActivate {
       this.logger.error(
         `Error checking user in party service: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
-      // Allow to continue even if validation fails - this is a business decision
-      // If you want stricter security, you could throw an exception here instead
       return true;
     }
   }
 
   private async validateUserInParty(userId: string, token: string): Promise<any> {
+    const user = await this.usersService.findOneByCondition({ partyId: userId });
+    if (user) {
+      return user;
+    }
+
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
 
     if (!token) {
