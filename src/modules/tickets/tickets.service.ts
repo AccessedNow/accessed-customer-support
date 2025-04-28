@@ -66,7 +66,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       createTicketDto.ticketType === TicketType.SUBSCRIPTION_BILLING
     ) {
       const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL');
-      const invoice = await firstValueFrom(
+      const { data: invoice } = await firstValueFrom(
         this.httpService.get(`${paymentServiceUrl}/api/invoices/${createTicketDto.meta.invoice}`),
       );
       if (!invoice?.data) {
