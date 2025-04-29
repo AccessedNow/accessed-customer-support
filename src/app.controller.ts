@@ -1,4 +1,4 @@
-import { Controller, Get, Version } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Version } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from './common/decorators/public.decorator';
 
@@ -11,14 +11,9 @@ export class AppController {
   @Get()
   @ApiOperation({ summary: 'Root endpoint' })
   @ApiResponse({ status: 200, description: 'OK' })
+  @HttpCode(HttpStatus.NOT_FOUND)
   getRoot() {
-    return {
-      status: 200,
-      message: 'OK',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    };
+    return null;
   }
 
   @Get('health')
@@ -26,13 +21,8 @@ export class AppController {
   @Version('')
   @ApiOperation({ summary: 'Health endpoint' })
   @ApiResponse({ status: 200, description: 'OK' })
+  @HttpCode(HttpStatus.NOT_FOUND)
   health() {
-    return {
-      status: 200,
-      message: 'OK',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    };
+    return null;
   }
 }

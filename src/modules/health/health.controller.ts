@@ -1,4 +1,4 @@
-import { Controller, Get, Version } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Version } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from 'src/common/decorators/public.decorator';
 
@@ -10,14 +10,9 @@ export class HealthController {
   @Version('1')
   @ApiOperation({ summary: 'Check API health (v1)' })
   @ApiResponse({ status: 200, description: 'API is healthy' })
+  @HttpCode(HttpStatus.NOT_FOUND)
   checkHealth() {
-    return {
-      status: 'ok',
-      version: 'v1',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    };
+    return null;
   }
 
   @Get()
@@ -25,13 +20,8 @@ export class HealthController {
   @Public()
   @ApiOperation({ summary: 'Check API health (v2)' })
   @ApiResponse({ status: 200, description: 'API is healthy with extended info' })
+  @HttpCode(HttpStatus.NOT_FOUND)
   checkHealthV2() {
-    return {
-      status: 'ok',
-      version: 'v2',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    };
+    return null;
   }
 }
