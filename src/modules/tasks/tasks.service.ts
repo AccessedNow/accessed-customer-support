@@ -1,4 +1,11 @@
-import { Inject, Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  Scope,
+} from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Task } from './schemas/task.schema';
 import { TasksRepositoryInterface } from 'src/core/repositories/interfaces/tasks.interface';
@@ -15,7 +22,7 @@ import { Activity, ActivityLogType, ActivityType } from '../activities/schemas/a
 import { TaskStatus } from 'src/common/enums/task.enum';
 import { UsersService } from '../users/users.service';
 
-@Injectable()
+@Injectable({ scope: Scope.REQUEST })
 export class TasksService extends BaseServiceAbstract<Task> {
   protected readonly logger = new Logger(TasksService.name);
 

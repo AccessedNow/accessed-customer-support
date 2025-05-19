@@ -4,11 +4,13 @@ import { BaseRepositoryInterface } from 'src/core/repositories/base/base.interfa
 import { BaseSchema } from 'src/core/schemas/base/base.schema';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { Inject, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Logger, NotFoundException, Injectable, Scope } from '@nestjs/common';
 import { catchError, firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { REQUEST } from '@nestjs/core';
+import { CustomerInfoDto } from 'src/modules/tickets/dto/customer-info.dto';
 
+@Injectable({ scope: Scope.REQUEST })
 export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseServiceInterface<T> {
   protected readonly logger: Logger;
   protected readonly httpService: HttpService;
@@ -67,7 +69,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
     const { data: entityExisting } = await firstValueFrom(
       this.httpService
         .get<any>(
-          `${partyServiceUrl}/api/admin/company/4:6db934cb-9aba-4675-a007-eb0d31c51391:291738/members/${id}`,
+          `${partyServiceUrl}/api/admin/company/4:23b2fe67-07bd-4b24-b0df-087ad126c675:291738/members/${id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -102,40 +104,52 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
     return entity;
   }
 
-  protected async findCustomerFromParty(id: string) {
+  protected async findCustomerFromParty(customerInfo: CustomerInfoDto) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
-
-    const customer = await this.repository.findOneByCondition({
-      customerId: id,
-    });
+    let customer = null;
+    if (customerInfo.partyId) {
+      customer = await this.repository.findOneByCondition({
+        customerId: customerInfo.partyId || customerInfo.customerId,
+      });
+    } else if (customerInfo.customerId && customerInfo.email) {
+      customer = await this.repository.findOneByCondition({
+        customerId: customerInfo.customerId,
+        email: customerInfo.email,
+      });
+    }
     if (customer) {
       return customer;
     }
 
     const { data: entityExisting } = await firstValueFrom(
-      this.httpService.get<any>(`${partyServiceUrl}/api/user/${id}`).pipe(
-        catchError((error: AxiosError) => {
-          this.logger.error(`Failed to fetch customer data: ${error.message}`);
-          throw new NotFoundException(`Failed to fetch customer data`);
-        }),
-      ),
+      this.httpService
+        .post<any>(`${partyServiceUrl}/api/customer/contact-support`, {
+          ...customerInfo,
+        })
+        .pipe(
+          catchError((error: AxiosError) => {
+            this.logger.error(`Failed to fetch customer data: ${error.message}`);
+            throw new NotFoundException(`Failed to fetch customer data`);
+          }),
+        ),
     );
     if (!entityExisting) {
       throw new NotFoundException(`Customer not found`);
     }
 
     const entity = await this.repository.create({
-      customerId: entityExisting.data.id,
-      name: entityExisting.data.name,
-      firstName: entityExisting.data.firstName,
-      lastName: entityExisting.data.lastName,
-      email: entityExisting.data.primaryEmail?.value,
-      phoneNumber: entityExisting.data.primaryPhone?.value,
-      avatar: entityExisting.data.avatar,
-      status: entityExisting.data.status,
-      countryCode: entityExisting.data.countryCode,
-      isoCode2: entityExisting.data.isoCode2,
-      timezone: entityExisting.data.timezone,
+      customerId: entityExisting.data.customer.id,
+      name: entityExisting.data.customer.name,
+      firstName: entityExisting.data.customer.firstName,
+      middleName: entityExisting.data.customer.middleName,
+      lastName: entityExisting.data.customer.lastName,
+      email: entityExisting.data.customer.primaryEmail?.value,
+      phoneNumber: entityExisting.data.customer.primaryPhone?.value,
+      avatar: entityExisting.data.customer.avatar,
+      status: entityExisting.data.customer.status,
+      countryCode: entityExisting.data.customer.countryCode,
+      isoCode2: entityExisting.data.customer.isoCode2,
+      timezone: entityExisting.data.customer.timezone,
     });
 
     return entity;

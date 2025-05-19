@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { Priority, TicketStatus, TicketType } from 'src/common/enums/ticket.enum';
+import { Priority, TicketStatus, TICKET_TYPE } from 'src/common/enums/ticket.enum';
 
 export class FilterTicketDto {
   @ApiProperty({
@@ -14,10 +14,10 @@ export class FilterTicketDto {
 
   @ApiProperty({
     description: 'Filter by ticket type',
-    enum: TicketType,
+    enum: TICKET_TYPE,
     required: false,
   })
-  @IsEnum(TicketType)
+  @IsEnum(TICKET_TYPE)
   @IsOptional()
   ticketType?: string;
 
