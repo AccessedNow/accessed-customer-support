@@ -15,6 +15,7 @@ import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestj
 import { FilesService } from './files.service';
 import { MulterFile } from 'src/common/interfaces/multer-file.interface';
 import { ApiAuth } from 'src/common/decorators/swagger.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Files Management')
 @Controller('files')
@@ -79,6 +80,7 @@ export class FilesController {
     },
   })
   @Version('1')
+  @Public()
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: MulterFile) {
     if (!file) {
@@ -151,6 +153,7 @@ export class FilesController {
   })
   @UseInterceptors(FilesInterceptor('files', 10))
   @Version('1')
+  @Public()
   async uploadMultipleFiles(@UploadedFiles() files: MulterFile[]) {
     if (!files || files.length === 0) throw new BadRequestException('No files uploaded');
     if (files.length > 10) throw new BadRequestException('Maximum 10 files allowed');

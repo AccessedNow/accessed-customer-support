@@ -78,8 +78,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     // Extract customer fields from DTO
     const customerFields = _.pick(createTicketDto, CUSTOMER_FIELDS);
     const customer = await this.customersService.findCustomerFromPartyService(customerFields);
-    const userExists = await this.usersService.findUserFromPartyService(user.id);
-    const prefix = TICKET_TYPE_PREFIX_MAP[ticketType] || 'OT';
+    const userExists = user && (await this.usersService.findUserFromPartyService(user.id));
+    const prefix = TICKET_TYPE_PREFIX_MAP[ticketType] || 'AC';
     const priority = dtoPriority || TICKET_TYPE_PRIORITY_MAP[ticketType] || Priority.LOW;
     const sla = SLA_CONFIG[priority];
     const firstResponseDue = new Date(new Date().getTime() + sla.firstResponse * 60 * 60 * 1000);
