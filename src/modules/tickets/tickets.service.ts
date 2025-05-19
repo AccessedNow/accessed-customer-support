@@ -1,4 +1,11 @@
-import { Inject, Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Logger,
+  BadRequestException,
+  Scope,
+} from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Ticket } from './schemas/ticket.schema';
 import { TicketsRepositoryInterface } from 'src/core/repositories/interfaces/tickets.interface';
@@ -9,7 +16,8 @@ import {
   TicketStatus,
   Priority,
   TICKET_TYPE_PREFIX_MAP,
-  TicketType,
+  TICKET_TYPE,
+  TYPE_TO_SUBTYPE,
 } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
 import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
@@ -23,8 +31,10 @@ import { FilesService } from '../files/files.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/schemas/user.schema';
 import { firstValueFrom } from 'rxjs';
+import * as _ from 'lodash';
+import { CUSTOMER_FIELDS } from './dto/customer-info.dto';
 
-@Injectable()
+@Injectable({ scope: Scope.REQUEST })
 export class TicketsService extends BaseServiceAbstract<Ticket> {
   protected readonly logger = new Logger(TicketsService.name);
 
@@ -42,29 +52,45 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
 
-  async create(createTicketDto: CreateTicketDto) {
-    const customer = await this.usersService.findUserFromPartyService(createTicketDto.customerId);
-    const prefix = TICKET_TYPE_PREFIX_MAP[createTicketDto.ticketType] || 'OT';
-    const sequence = await this.ticketCounterRepository.getNextSequence(prefix);
-    const ticketId = `#${prefix}-${sequence.toString().padStart(6, '0')}`;
-    const priority =
-      createTicketDto.priority ||
-      TICKET_TYPE_PRIORITY_MAP[createTicketDto.ticketType] ||
-      Priority.LOW;
+  async create({
+    createTicketDto,
+    user,
+  }: {
+    createTicketDto: CreateTicketDto;
+    user: any;
+  }): Promise<Ticket> {
+    const {
+      ticketType,
+      ticketSubtype,
+      priority: dtoPriority,
+      files,
+      followers,
+      assigneeId,
+    } = createTicketDto;
+
+    // Validate subtype belongs to type if provided
+    if (ticketSubtype && !TYPE_TO_SUBTYPE[ticketType]?.includes(ticketSubtype)) {
+      throw new BadRequestException(
+        `Invalid subtype ${ticketSubtype} for ticket type ${ticketType}`,
+      );
+    }
+
+    // Extract customer fields from DTO
+    const customerFields = _.pick(createTicketDto, CUSTOMER_FIELDS);
+    const customer = await this.customersService.findCustomerFromPartyService(customerFields);
+    const userExists = await this.usersService.findUserFromPartyService(user.id);
+    const prefix = TICKET_TYPE_PREFIX_MAP[ticketType] || 'OT';
+    const priority = dtoPriority || TICKET_TYPE_PRIORITY_MAP[ticketType] || Priority.LOW;
     const sla = SLA_CONFIG[priority];
     const firstResponseDue = new Date(new Date().getTime() + sla.firstResponse * 60 * 60 * 1000);
     const resolutionDue = new Date(new Date().getTime() + sla.resolution * 60 * 60 * 1000);
-
-    // Handle assignee and followers
-    const [assignee, followers] = await Promise.all([
-      this.handleAssignee(createTicketDto.assigneeId, createTicketDto.ticketType),
-      this.handleFollowers(createTicketDto.followers),
+    const [assignee, followersList, sequence] = await Promise.all([
+      this.handleAssignee(assigneeId, ticketType),
+      this.handleFollowers(followers),
+      this.ticketCounterRepository.getNextSequence(prefix),
     ]);
-
-    if (
-      createTicketDto.meta?.invoice &&
-      createTicketDto.ticketType === TicketType.SUBSCRIPTION_BILLING
-    ) {
+    const ticketId = `#${prefix}-${sequence.toString().padStart(6, '0')}`;
+    if (createTicketDto.meta?.invoice && ticketType === TICKET_TYPE.BILLING) {
       const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL');
       const { data: invoice } = await firstValueFrom(
         this.httpService.get(`${paymentServiceUrl}/api/invoices/${createTicketDto.meta.invoice}`),
@@ -80,11 +106,23 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticketId,
       customer: {
         id: customer._id,
-        customerId: customer.partyId,
+        customerId: customer.customerId,
         name: customer.name,
         avatar: customer.avatar,
       },
-      createdBy: customer._id || null,
+      createdBy: user
+        ? {
+            id: userExists._id,
+            partyId: userExists.partyId,
+            name: userExists.name,
+            avatar: userExists.avatar,
+          }
+        : {
+            id: customer._id,
+            customerId: customer.customerId,
+            name: customer.name,
+            avatar: customer.avatar,
+          },
       status: TicketStatus.OPEN,
       priority,
       firstResponseDue,
@@ -97,7 +135,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
             avatar: assignee.avatar,
           }
         : {},
-      followers: followers.map((follower) => follower._id),
+      followers: followersList.map((follower) => follower._id),
     };
 
     const ticket = await this.ticketsRepository.create(ticketData);
@@ -112,7 +150,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       metadata: {
         priority,
         logType: ActivityLogType.TICKET_CREATED,
-        ticketType: createTicketDto.ticketType,
+        ticketType: ticketType,
+        ticketSubtype: ticketSubtype,
         assignee: assignee
           ? {
               id: assignee._id,
@@ -124,11 +163,9 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       },
     });
 
-    if (createTicketDto.files && createTicketDto.files.length > 0) {
+    if (files && files.length > 0) {
       await Promise.all(
-        createTicketDto.files.map((file) =>
-          this.filesService.create({ file, ticketId: ticket._id.toString() }),
-        ),
+        files.map((file) => this.filesService.create({ file, ticketId: ticket._id.toString() })),
       );
     }
 
@@ -199,6 +236,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const filterMap: FilterMap = {
       status: 'status',
       ticketType: 'ticketType',
+      ticketSubtype: 'ticketSubtype',
       priority: 'priority',
       assignedTo: 'assignee.id',
       customerId: 'customer.customerId',
@@ -207,7 +245,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const conditions = QueryBuilderUtil.buildFilterConditions(query, filterMap);
     const options = QueryBuilderUtil.buildQueryOptions(query);
 
-    return await this.ticketsRepository.findAll(conditions, options);
+    const result = await this.ticketsRepository.findAll(conditions, options);
+    return result;
   }
 
   async findOneById(id: string) {
@@ -287,6 +326,26 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       }
     }
 
+    // Handle ticketSubtype validation and changes
+    if (
+      updateTicketDto.ticketSubtype !== undefined &&
+      updateTicketDto.ticketSubtype !== ticket.ticketSubtype
+    ) {
+      const ticketType = updateTicketDto.ticketType || ticket.ticketType;
+
+      if (
+        updateTicketDto.ticketSubtype &&
+        !TYPE_TO_SUBTYPE[ticketType]?.includes(updateTicketDto.ticketSubtype)
+      ) {
+        throw new BadRequestException(
+          `Invalid subtype ${updateTicketDto.ticketSubtype} for ticket type ${ticketType}`,
+        );
+      }
+
+      changes['ticketSubtype'] = { from: ticket.ticketSubtype, to: updateTicketDto.ticketSubtype };
+      updateData['ticketSubtype'] = updateTicketDto.ticketSubtype;
+    }
+
     if (updateTicketDto.status && updateTicketDto.status !== ticket.status) {
       if (!this.isValidStatusTransition(ticket.status, updateTicketDto.status)) {
         throw new BadRequestException(
@@ -347,6 +406,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
     const updatedTicket = await this.ticketsRepository.update(id, updateData);
 
+    await this.handleClosedTicket(updatedTicket);
+
     // Convert Mongoose document to plain object and return only necessary data
     const plainTicket = this.transformTicketResponse(updatedTicket);
 
@@ -354,6 +415,19 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     (plainTicket as any).activity = activity;
 
     return plainTicket as Ticket;
+  }
+
+  private async handleClosedTicket(ticket: Ticket) {
+    switch (ticket.status) {
+      case TicketStatus.CLOSED:
+        // TODO: Call to party service to deactivate account, send email to customer
+        // if (ticket.ticketType === TICKET_TYPE.ACCOUNT && ticket.ticketSubtype === TICKET_SUBTYPE.ACCOUNT_DEACTIVATION) {
+        //   await this.partyService.deactivateAccount(ticket.customer.customerId);
+        // }
+        break;
+      default:
+        break;
+    }
   }
 
   /**
@@ -419,6 +493,14 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       activityLogType = ActivityLogType.PRIORITY_CHANGED;
       activityType = ActivityType.PRIORITY_CHANGED;
       description = `Priority changed from ${changes.priority.from} to ${changes.priority.to}`;
+    } else if (changes.ticketType) {
+      activityLogType = ActivityLogType.TYPE_CHANGED;
+      activityType = ActivityType.TYPE_CHANGED;
+      description = `Type changed from ${changes.ticketType.from} to ${changes.ticketType.to}`;
+    } else if (changes.ticketSubtype) {
+      activityLogType = ActivityLogType.SUBTYPE_CHANGED;
+      activityType = ActivityType.SUBTYPE_CHANGED;
+      description = `Subtype changed from ${changes.ticketSubtype.from || 'none'} to ${changes.ticketSubtype.to || 'none'}`;
     } else if (changes.assignee) {
       activityLogType = ActivityLogType.ASSIGNED;
       activityType = ActivityType.ASSIGNED;
@@ -594,3 +676,4 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     };
   }
 }
+

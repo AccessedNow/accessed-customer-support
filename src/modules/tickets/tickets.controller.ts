@@ -20,8 +20,9 @@ import { PageSortDto } from 'src/common/utils/page-sort.dto';
 import { FilterTicketDto } from './dto/filter-ticket.dto';
 import { RequirePrivileges } from 'src/common/decorators/require-privileges.decorator';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { TicketStatus, TicketType, Priority } from 'src/common/enums/ticket.enum';
+import { TicketStatus, TICKET_TYPE, Priority, TICKET_SUBTYPE } from 'src/common/enums/ticket.enum';
 import { ApiAuth } from 'src/common/decorators/swagger.decorator';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Tickets Management')
 @Controller('tickets')
@@ -144,11 +145,16 @@ export class TicketsController {
       },
     },
   })
-  @RequirePrivileges('ADD_TICKETS')
+  @Public()
   @Version('1')
-  createTicket(@Body() createTicketDto: CreateTicketDto, @User() user: any) {
-    createTicketDto.customerId = user.id;
-    return this.ticketsService.create(createTicketDto);
+  createTicket(@Body() createTicketDto: CreateTicketDto) {
+    return this.ticketsService.create({ createTicketDto, user: null });
+  }
+
+  @Post('add')
+  @Version('1')
+  createTicketByUser(@Body() createTicketDto: CreateTicketDto, @User() user: any) {
+    return this.ticketsService.create({ createTicketDto, user });
   }
 
   @Post('list')
@@ -166,7 +172,8 @@ export class TicketsController {
         value: {
           status: TicketStatus.OPEN,
           priority: Priority.HIGH,
-          ticketType: TicketType.COMPANY_REVIEWS,
+          ticketType: TICKET_TYPE.ACCOUNT,
+          ticketSubtype: TICKET_SUBTYPE.ACCOUNT_REGISTRATION,
         },
       },
     },

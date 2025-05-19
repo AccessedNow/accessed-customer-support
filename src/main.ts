@@ -3,7 +3,6 @@ import { Logger, ValidationPipe, BadRequestException, VersioningType } from '@ne
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { setupSwagger } from './config/swagger.config';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
@@ -35,9 +34,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Add global exception filter
-  app.useGlobalFilters(new HttpExceptionFilter());
-
   // Add global transform interceptor
   app.useGlobalInterceptors(new TransformInterceptor());
 
@@ -47,23 +43,6 @@ async function bootstrap() {
       transform: true,
       forbidNonWhitelisted: true,
       exceptionFactory: (errors) => {
-        console.log('Validation errors:', errors); // Log the validation errors for debugging
-        // Validation errors: [
-        //   ValidationError {
-        //     target: CreateTaskDto {
-        //       title: 'Configure Email Server',
-        //       description: 'Set up and configure email server for new account',
-        //       status: 'OPEN',
-        //       priority: 'HIGH'
-        //     },
-        //     value: 'OPEN',
-        //     property: 'status',
-        //     children: [],
-        //     constraints: {
-        //       isEnum: 'status must be one of the following values: PENDING, IN_PROGRESS, COMPLETED, CANCELLED, BLOCKED'
-        //     }
-        //   }
-        // ]
         const formattedErrors = errors.map((error) => ({
           property: error.property,
           constraints: Object.values(error.constraints || []),

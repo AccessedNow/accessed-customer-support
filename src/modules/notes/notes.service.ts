@@ -1,4 +1,11 @@
-import { Inject, Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  Scope,
+} from '@nestjs/common';
 import { BaseServiceAbstract } from 'src/core/services/base/base.abstract.service';
 import { Note } from './schemas/note.schema';
 import { NotesRepositoryInterface } from 'src/core/repositories/interfaces/notes.interface';
@@ -14,7 +21,7 @@ import { FilesService } from '../files/files.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { UsersService } from '../users/users.service';
 
-@Injectable()
+@Injectable({ scope: Scope.REQUEST })
 export class NotesService extends BaseServiceAbstract<Note> {
   protected readonly logger = new Logger(NotesService.name);
 

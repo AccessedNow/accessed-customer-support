@@ -1,12 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
-import { Priority, TicketType } from 'src/common/enums/ticket.enum';
+import { Priority, TICKET_TYPE, TICKET_SUBTYPE } from 'src/common/enums/ticket.enum';
+import { CustomerInfoDto } from './customer-info.dto';
 
-export class CreateTicketDto {
-  @IsOptional()
-  @IsString()
-  customerId: string;
-
+export class CreateTicketDto extends CustomerInfoDto {
   @IsOptional()
   @IsString()
   assigneeId: string;
@@ -32,13 +29,22 @@ export class CreateTicketDto {
 
   @ApiProperty({
     description: 'Type of ticket',
-    enum: TicketType,
-    example: TicketType.COMPANY_REVIEWS,
-    default: TicketType.COMPANY_REVIEWS,
+    enum: TICKET_TYPE,
+    example: TICKET_TYPE.ACCOUNT,
+    default: TICKET_TYPE.ACCOUNT,
   })
-  @IsEnum(TicketType)
+  @IsEnum(TICKET_TYPE)
   @IsNotEmpty()
   ticketType: string;
+
+  @ApiProperty({
+    description: 'Subtype of ticket',
+    enum: TICKET_SUBTYPE,
+    example: TICKET_SUBTYPE.ACCOUNT_REGISTRATION,
+  })
+  @IsEnum(TICKET_SUBTYPE)
+  @IsNotEmpty()
+  ticketSubtype: string;
 
   @ApiProperty({
     description: 'Priority of the ticket',

@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   UnauthorizedException,
   Logger,
+  Scope,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -15,7 +16,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { TokenService } from '../services/token.service';
 import { UsersService } from 'src/modules/users/users.service';
 
-@Injectable()
+@Injectable({ scope: Scope.REQUEST })
 export class AuthGuard implements CanActivate {
   private readonly logger = new Logger(AuthGuard.name);
 
@@ -47,17 +48,12 @@ export class AuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
     const user = this.tokenService.decodeToken(token);
 
-    if (!user) {
+    if (!user || !user.id) {
       throw new UnauthorizedException('Invalid token payload');
-    }
-
-    if (!user.id) {
-      throw new UnauthorizedException('Invalid token payload: missing user info');
     }
 
     request.token = token;
     request.user = user;
-
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
     if (!partyServiceUrl) {
       this.logger.warn('PARTY_SERVICE_URL not configured, skipping user validation');
@@ -129,17 +125,25 @@ export class AuthGuard implements CanActivate {
           ),
       );
 
-      if (!entityExisting) {
-        this.logger.warn(`No data returned for user ${userId}`);
-        return null;
-      }
-
-      if (!entityExisting.data) {
+      if (entityExisting || !entityExisting.data) {
         this.logger.warn(`No user data found in response for user ${userId}`);
         return null;
       }
+      const createUser = await this.usersService.create({
+        partyId: entityExisting.data.id,
+        name: entityExisting.data.name,
+        firstName: entityExisting.data.firstName,
+        lastName: entityExisting.data.lastName,
+        email: entityExisting.data.primaryEmail?.value,
+        phoneNumber: entityExisting.data.primaryPhone?.value,
+        avatar: entityExisting.data.avatar,
+        status: entityExisting.data.status,
+        countryCode: entityExisting.data.countryCode,
+        isoCode2: entityExisting.data.isoCode2,
+        timezone: entityExisting.data.timezone,
+      });
 
-      return entityExisting.data;
+      return createUser;
     } catch (error) {
       this.logger.error(`Error in validateUserInParty: ${error.message}`);
       return null;

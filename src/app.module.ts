@@ -45,14 +45,18 @@ import * as https from 'https';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('mongo.uri'),
+        uri: configService.get<string>('MONGO_URI'),
       }),
       inject: [ConfigService],
     }),
-    HttpModule.register({
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false,
+    HttpModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async () => ({
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false,
+        }),
       }),
+      inject: [ConfigService],
     }),
     HealthModule,
     TicketsModule,

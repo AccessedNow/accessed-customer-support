@@ -18,14 +18,11 @@ export class BaseUserSchema extends BaseSchema {
   @Prop({ required: false })
   email: string;
 
-  @Prop({ required: false, default: [] })
-  emails: string[];
-
   @Prop({ required: false })
   phoneNumber: string;
 
-  @Prop({ required: false, default: [] })
-  phones: string[];
+  @Prop({ required: false })
+  partyType: string;
 
   @Prop({ required: false })
   city: string;
@@ -47,9 +44,6 @@ export class BaseUserSchema extends BaseSchema {
 
   @Prop({ required: false })
   language: string;
-
-  @Prop({ required: false })
-  mobilePhone: string;
 
   @Prop({ required: false })
   avatar: string;
