@@ -9,6 +9,7 @@ import { catchError, firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { REQUEST } from '@nestjs/core';
 import { CustomerInfoDto } from 'src/modules/tickets/dto/customer-info.dto';
+import { TICKET_TYPE } from 'src/common/enums/ticket.enum';
 
 @Injectable({ scope: Scope.REQUEST })
 export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseServiceInterface<T> {
@@ -99,6 +100,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
       countryCode: entityExisting.data.countryCode,
       isoCode2: entityExisting.data.isoCode2,
       timezone: entityExisting.data.timezone,
+      components: Object.values(TICKET_TYPE),
     });
 
     return entity;
