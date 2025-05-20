@@ -195,7 +195,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const userTicketCounts = await Promise.all(
       users.map(async (user) => {
         const { content: tickets } = await this.ticketsRepository.findAll({
-          'assignee.id': user._id.toString(),
+          'assignee.partyId': user.partyId,
           status: { $ne: TicketStatus.CLOSED },
         });
 

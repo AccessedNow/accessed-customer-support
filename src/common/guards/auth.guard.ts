@@ -15,6 +15,7 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { TokenService } from '../services/token.service';
 import { UsersService } from 'src/modules/users/users.service';
+import { TICKET_TYPE } from '../enums/ticket.enum';
 
 @Injectable({ scope: Scope.REQUEST })
 export class AuthGuard implements CanActivate {
@@ -141,6 +142,7 @@ export class AuthGuard implements CanActivate {
         countryCode: entityExisting.data.countryCode,
         isoCode2: entityExisting.data.isoCode2,
         timezone: entityExisting.data.timezone,
+        components: Object.values(TICKET_TYPE),
       });
 
       return createUser;
