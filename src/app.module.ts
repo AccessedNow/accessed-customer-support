@@ -17,6 +17,7 @@ import { TokenService } from './common/services/token.service';
 import { FilesModule } from './modules/files/files.module';
 import { AppController } from './app.controller';
 import { UsersModule } from './modules/users/users.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuthGuard } from './common/guards/auth.guard';
 import { HttpModule } from '@nestjs/axios';
 import * as https from 'https';
@@ -66,6 +67,7 @@ import * as https from 'https';
     CustomersModule,
     FilesModule,
     UsersModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [
