@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Ticket } from '../tickets/schemas/ticket.schema';
 import { Activity } from '../activities/schemas/activity.schema';
 import { TicketStatus } from 'src/common/enums/ticket.enum';
+import { ChannelTicket } from 'src/common/enums/channel-ticket.enum';
 
 export interface MetricsResponse {
   createdTickets: MetricData;
@@ -36,6 +37,7 @@ export interface TrendData {
 
 export interface ChannelData {
   name: string;
+  type: string;
   count: number;
   percentage: number;
 }
@@ -278,6 +280,7 @@ export class DashboardService {
 
     const channels: ChannelData[] = data.map((item) => ({
       name: this.formatChannelName(item._id),
+      type: item._id,
       count: item.count,
       percentage: Math.round((item.count / totalTickets) * 100),
     }));
@@ -452,12 +455,11 @@ export class DashboardService {
 
   private formatChannelName(source: string): string {
     const channelMap: Record<string, string> = {
-      web: 'Contact Form',
-      email: 'Email',
-      chat: 'Live Chat',
-      messenger: 'Messenger',
-      whatsapp: 'WhatsApp',
-      phone: 'Phone',
+      [ChannelTicket.WEB]: 'Contact Form',
+      [ChannelTicket.CORP]: 'Corporate',
+      [ChannelTicket.CHAT]: 'Chat',
+      [ChannelTicket.WHATSAPP]: 'WhatsApp',
+      [ChannelTicket.LINKEDIN]: 'LinkedIn',
     };
 
     return channelMap[source?.toLowerCase()] || source || 'Other';
