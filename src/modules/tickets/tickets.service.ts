@@ -33,6 +33,7 @@ import { User } from '../users/schemas/user.schema';
 import { firstValueFrom } from 'rxjs';
 import * as _ from 'lodash';
 import { CUSTOMER_FIELDS } from './dto/customer-info.dto';
+import { HttpClientFactoryService } from 'src/common/services/http-client-factory.service';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TicketsService extends BaseServiceAbstract<Ticket> {
@@ -48,6 +49,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     private readonly ticketCounterRepository: TicketCounterRepository,
     private readonly filesService: FilesService,
     private readonly usersService: UsersService,
+    private readonly httpClientFactory: HttpClientFactoryService,
   ) {
     super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
@@ -168,6 +170,31 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         files.map((file) => this.filesService.create({ file, ticketId: ticket._id.toString() })),
       );
     }
+
+    const messageClient = this.httpClientFactory.getClient('message', {
+      baseURL: this.configService.get<string>('MESSAGE_SERVICE_URL'),
+      timeout: 15000,
+      retries: 2,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    await messageClient.post('/sys/mails/send', {
+      type: 'SUPPORT_TICKET_NOTIFICATION',
+      dataSupportTicketNotification: {
+        ticketId: ticketId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        priorityLevel: priority.toUpperCase(),
+        priorityLevelLower: priority.toLowerCase(),
+        ticketSubject: createTicketDto.subject,
+        ticketCategory: ticketType,
+        createdDate: new Date().toISOString().split('T')[0],
+        ticketStatus: TicketStatus.OPEN,
+        ticketDescription: createTicketDto.message,
+        viewTicketUrl: ticket._id.toString(),
+      },
+    });
 
     return ticket;
   }
