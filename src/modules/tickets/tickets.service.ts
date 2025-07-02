@@ -18,6 +18,7 @@ import {
   TICKET_TYPE_PREFIX_MAP,
   TICKET_TYPE,
   TYPE_TO_SUBTYPE,
+  TICKET_SUBTYPE,
 } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
 import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
@@ -448,9 +449,24 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     switch (ticket.status) {
       case TicketStatus.CLOSED:
         // TODO: Call to party service to deactivate account, send email to customer
-        // if (ticket.ticketType === TICKET_TYPE.ACCOUNT && ticket.ticketSubtype === TICKET_SUBTYPE.ACCOUNT_DEACTIVATION) {
-        //   await this.partyService.deactivateAccount(ticket.customer.customerId);
-        // }
+        if (
+          ticket.ticketType === TICKET_TYPE.ACCOUNT &&
+          ticket.ticketSubtype === TICKET_SUBTYPE.ACCOUNT_DEACTIVATION
+        ) {
+          const partyClient = this.httpClientFactory.getClient('party', {
+            baseURL: this.configService.get<string>('PARTY_SERVICE_URL'),
+            timeout: 15000,
+            retries: 2,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          await partyClient.post(
+            `/api/admin/customers/${ticket.createdBy?.customerId}/unblock`,
+            null,
+          );
+          // TODO: Send email to customer
+        }
         break;
       default:
         break;
