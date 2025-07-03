@@ -18,6 +18,7 @@ import {
   TICKET_TYPE_PREFIX_MAP,
   TICKET_TYPE,
   TYPE_TO_SUBTYPE,
+  TICKET_SUBTYPE,
 } from 'src/common/enums/ticket.enum';
 import { TICKET_TYPE_PRIORITY_MAP } from 'src/common/constants/ticket-type-priority-map';
 import { ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
@@ -33,6 +34,7 @@ import { User } from '../users/schemas/user.schema';
 import { firstValueFrom } from 'rxjs';
 import * as _ from 'lodash';
 import { CUSTOMER_FIELDS } from './dto/customer-info.dto';
+import { HttpClientFactoryService } from 'src/common/services/http-client-factory.service';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TicketsService extends BaseServiceAbstract<Ticket> {
@@ -48,6 +50,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     private readonly ticketCounterRepository: TicketCounterRepository,
     private readonly filesService: FilesService,
     private readonly usersService: UsersService,
+    private readonly httpClientFactory: HttpClientFactoryService,
   ) {
     super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
@@ -168,6 +171,31 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         files.map((file) => this.filesService.create({ file, ticketId: ticket._id.toString() })),
       );
     }
+
+    const messageClient = this.httpClientFactory.getClient('message', {
+      baseURL: this.configService.get<string>('MESSAGE_SERVICE_URL'),
+      timeout: 15000,
+      retries: 2,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    await messageClient.post('/sys/mails/send', {
+      type: 'SUPPORT_TICKET_NOTIFICATION',
+      dataSupportTicketNotification: {
+        ticketId: ticketId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        priorityLevel: priority.toUpperCase(),
+        priorityLevelLower: priority.toLowerCase(),
+        ticketSubject: createTicketDto.subject,
+        ticketCategory: ticketType,
+        createdDate: new Date().toISOString().split('T')[0],
+        ticketStatus: TicketStatus.OPEN,
+        ticketDescription: createTicketDto.message,
+        viewTicketUrl: ticket._id.toString(),
+      },
+    });
 
     return ticket;
   }
@@ -421,9 +449,24 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     switch (ticket.status) {
       case TicketStatus.CLOSED:
         // TODO: Call to party service to deactivate account, send email to customer
-        // if (ticket.ticketType === TICKET_TYPE.ACCOUNT && ticket.ticketSubtype === TICKET_SUBTYPE.ACCOUNT_DEACTIVATION) {
-        //   await this.partyService.deactivateAccount(ticket.customer.customerId);
-        // }
+        if (
+          ticket.ticketType === TICKET_TYPE.ACCOUNT &&
+          ticket.ticketSubtype === TICKET_SUBTYPE.ACCOUNT_DEACTIVATION
+        ) {
+          const partyClient = this.httpClientFactory.getClient('party', {
+            baseURL: this.configService.get<string>('PARTY_SERVICE_URL'),
+            timeout: 15000,
+            retries: 2,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          await partyClient.post(
+            `/api/admin/customers/${ticket.createdBy?.customerId}/unblock`,
+            null,
+          );
+          // TODO: Send email to customer
+        }
         break;
       default:
         break;
