@@ -1,14 +1,12 @@
 import { Controller, Get, Query, Version } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
-// import { RequirePrivileges } from 'src/common/decorators/require-privileges.decorator';
-// import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiAuth } from 'src/common/decorators/swagger.decorator';
 import { Public } from 'src/common/decorators/public.decorator';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 @ApiTags('Dashboard Analytics')
 @Controller('dashboard')
-// @Roles('ROLE_CUSTOMER_SUPPORT', 'ROLE_CUSTOMER_SUPPORT_ADMIN', 'ROLE_ADMIN')
 @ApiAuth()
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
@@ -19,18 +17,6 @@ export class DashboardController {
     summary: 'Get dashboard key metrics',
     description:
       'Returns key metrics including created tickets, unresolved tickets, solved tickets, and average first reply time with comparison to previous period',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for metrics calculation (e.g., 30d, 7d)',
-    example: '30d',
-  })
-  @ApiQuery({
-    name: 'compare',
-    required: false,
-    description: 'Whether to compare with previous period',
-    example: true,
   })
   @ApiResponse({
     status: 200,
@@ -70,15 +56,9 @@ export class DashboardController {
       },
     },
   })
-  // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getMetrics(
-    @Query('period') period: string = '30d',
-    @Query('compare') compare: boolean = true,
-    @Query('start') start?: Date,
-    @Query('end') end?: Date,
-  ) {
-    return this.dashboardService.getMetrics(period, compare, start, end);
+  async getMetrics(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getMetrics(query);
   }
 
   @Get('tickets-trend')
@@ -86,18 +66,6 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get tickets creation and resolution trend',
     description: 'Returns trend data for tickets created and solved over a specified period',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for trend analysis (e.g., 7d, 30d)',
-    example: '7d',
-  })
-  @ApiQuery({
-    name: 'granularity',
-    required: false,
-    description: 'Data granularity (daily, weekly)',
-    example: 'daily',
   })
   @ApiResponse({
     status: 200,
@@ -128,15 +96,9 @@ export class DashboardController {
       },
     },
   })
-  // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getTicketsTrend(
-    @Query('period') period: string = '7d',
-    @Query('granularity') granularity: string = 'daily',
-    @Query('start') start?: Date,
-    @Query('end') end?: Date,
-  ) {
-    return this.dashboardService.getTicketsTrend(period, granularity, start, end);
+  async getTicketsTrend(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getTicketsTrend(query);
   }
 
   @Get('first-reply-analysis')
@@ -144,12 +106,6 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get first reply time analysis',
     description: 'Returns breakdown of tickets by first reply time categories',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for analysis (e.g., 30d)',
-    example: '30d',
   })
   @ApiResponse({
     status: 200,
@@ -191,10 +147,9 @@ export class DashboardController {
       },
     },
   })
-  // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getFirstReplyAnalysis(@Query('period') period: string = '30d', start?: Date, end?: Date) {
-    return this.dashboardService.getFirstReplyAnalysis(period, start, end);
+  async getFirstReplyAnalysis(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getFirstReplyAnalysis(query);
   }
 
   @Get('channels-analysis')
@@ -202,18 +157,6 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get tickets distribution by channels',
     description: 'Returns breakdown of tickets by communication channels',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for analysis (e.g., 30d)',
-    example: '30d',
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    description: 'Filter by ticket status (active, all)',
-    example: 'active',
   })
   @ApiResponse({
     status: 200,
@@ -255,15 +198,9 @@ export class DashboardController {
       },
     },
   })
-  // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getChannelsAnalysis(
-    @Query('period') period: string = '30d',
-    @Query('status') status: string = 'active',
-    @Query('start') start?: Date,
-    @Query('end') end?: Date,
-  ) {
-    return this.dashboardService.getChannelsAnalysis(period, status, start, end);
+  async getChannelsAnalysis(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getChannelsAnalysis(query);
   }
 
   @Get('customer-satisfaction')
@@ -271,12 +208,6 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get customer satisfaction metrics',
     description: 'Returns customer satisfaction breakdown with sentiment analysis',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for analysis (e.g., 30d)',
-    example: '30d',
   })
   @ApiResponse({
     status: 200,
@@ -311,10 +242,9 @@ export class DashboardController {
       },
     },
   })
-  // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getCustomerSatisfaction(@Query('period') period: string = '30d', start?: Date, end?: Date) {
-    return this.dashboardService.getCustomerSatisfaction(period, start, end);
+  async getCustomerSatisfaction(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getCustomerSatisfaction(query);
   }
 
   @Get('overview')
@@ -322,18 +252,6 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get complete dashboard overview',
     description: 'Returns all dashboard data in a single optimized request',
-  })
-  @ApiQuery({
-    name: 'period',
-    required: false,
-    description: 'Period for analysis (e.g., 30d)',
-    example: '30d',
-  })
-  @ApiQuery({
-    name: 'compare',
-    required: false,
-    description: 'Whether to compare with previous period',
-    example: true,
   })
   @ApiResponse({
     status: 200,
@@ -352,12 +270,8 @@ export class DashboardController {
       },
     },
   })
-  //  @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getDashboardOverview(
-    @Query('period') period: string = '30d',
-    @Query('compare') compare: boolean = true,
-  ) {
-    return this.dashboardService.getDashboardOverview(period, compare);
+  async getDashboardOverview(@Query() query: DashboardQueryDto) {
+    return this.dashboardService.getDashboardOverview(query);
   }
 }
