@@ -5,6 +5,7 @@ import { Ticket } from '../tickets/schemas/ticket.schema';
 import { Activity } from '../activities/schemas/activity.schema';
 import { TicketStatus } from 'src/common/enums/ticket.enum';
 import { ChannelTicket } from 'src/common/enums/channel-ticket.enum';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 export interface MetricsResponse {
   createdTickets: MetricData;
@@ -57,13 +58,8 @@ export class DashboardService {
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
   ) {}
 
-  async getMetrics(
-    period: string = '30d',
-    compare: boolean = true,
-    start?: Date,
-    end?: Date,
-  ): Promise<MetricsResponse> {
-    const { currentPeriod, previousPeriod } = this.getPeriodDates(period, start, end);
+  async getMetrics(query: DashboardQueryDto): Promise<MetricsResponse> {
+    const { currentPeriod, previousPeriod } = this.getTimeRange(query);
 
     const [
       currentCreated,
@@ -76,13 +72,13 @@ export class DashboardService {
       previousReplyTime,
     ] = await Promise.all([
       this.getCreatedTicketsCount(currentPeriod),
-      compare ? this.getCreatedTicketsCount(previousPeriod) : 0,
+      query.compare ? this.getCreatedTicketsCount(previousPeriod) : 0,
       this.getUnresolvedTicketsCount(currentPeriod),
-      compare ? this.getUnresolvedTicketsCount(previousPeriod) : 0,
+      query.compare ? this.getUnresolvedTicketsCount(previousPeriod) : 0,
       this.getSolvedTicketsCount(currentPeriod),
-      compare ? this.getSolvedTicketsCount(previousPeriod) : 0,
+      query.compare ? this.getSolvedTicketsCount(previousPeriod) : 0,
       this.getAverageFirstReplyTime(currentPeriod),
-      compare ? this.getAverageFirstReplyTime(previousPeriod) : 0,
+      query.compare ? this.getAverageFirstReplyTime(previousPeriod) : 0,
     ]);
 
     return {
@@ -115,13 +111,8 @@ export class DashboardService {
     };
   }
 
-  async getTicketsTrend(
-    period: string = '7d',
-    _granularity: string = 'daily',
-    start?: Date,
-    end?: Date,
-  ) {
-    const { startDate, endDate } = this.getPeriodRange(period, start, end);
+  async getTicketsTrend(query: DashboardQueryDto) {
+    const { startDate, endDate } = this.getTimeRange(query).currentPeriod;
 
     const pipeline = [
       {
@@ -174,8 +165,8 @@ export class DashboardService {
     };
   }
 
-  async getFirstReplyAnalysis(period: string = '30d', start?: Date, end?: Date) {
-    const { startDate, endDate } = this.getPeriodRange(period, start, end);
+  async getFirstReplyAnalysis(query: DashboardQueryDto) {
+    const { startDate, endDate } = this.getTimeRange(query).currentPeriod;
 
     const pipeline = [
       {
@@ -262,20 +253,15 @@ export class DashboardService {
     };
   }
 
-  async getChannelsAnalysis(
-    period: string = '30d',
-    status: string = 'active',
-    start?: Date,
-    end?: Date,
-  ) {
-    const { startDate, endDate } = this.getPeriodRange(period, start, end);
+  async getChannelsAnalysis(query: DashboardQueryDto) {
+    const { startDate, endDate } = this.getTimeRange(query).currentPeriod;
 
     const matchCondition: any = {
       createdAt: { $gte: startDate, $lte: endDate },
       deletedAt: null,
     };
 
-    if (status === 'active') {
+    if (query.status === 'active') {
       matchCondition.status = { $nin: [TicketStatus.CLOSED, TicketStatus.RESOLVED] };
     }
 
@@ -306,11 +292,11 @@ export class DashboardService {
     };
   }
 
-  async getCustomerSatisfaction(period: string = '30d', start?: Date, end?: Date) {
+  async getCustomerSatisfaction(query: DashboardQueryDto) {
+    const { currentPeriod, previousPeriod } = this.getTimeRange(query);
+
     // This would typically come from a separate feedback/survey system
     // For now, we'll simulate based on ticket resolution patterns
-    const { currentPeriod, previousPeriod } = this.getPeriodDates(period, start, end);
-
     const [currentSatisfaction, previousSatisfaction] = await Promise.all([
       this.calculateSatisfactionMetrics(currentPeriod),
       this.calculateSatisfactionMetrics(previousPeriod),
@@ -347,19 +333,14 @@ export class DashboardService {
     };
   }
 
-  async getDashboardOverview(
-    period: string = '30d',
-    compare: boolean = true,
-    start?: Date,
-    end?: Date,
-  ) {
+  async getDashboardOverview(query: DashboardQueryDto) {
     const [metrics, ticketsTrend, firstReplyAnalysis, channelsAnalysis, customerSatisfaction] =
       await Promise.all([
-        this.getMetrics(period, compare),
-        this.getTicketsTrend('7d', 'daily', start, end),
-        this.getFirstReplyAnalysis(period, start, end),
-        this.getChannelsAnalysis(period, 'active'),
-        this.getCustomerSatisfaction(period),
+        this.getMetrics(query),
+        this.getTicketsTrend({ ...query, period: '7d' }),
+        this.getFirstReplyAnalysis(query),
+        this.getChannelsAnalysis(query),
+        this.getCustomerSatisfaction(query),
       ]);
 
     return {
@@ -372,17 +353,28 @@ export class DashboardService {
   }
 
   // Helper methods
-  private getPeriodDates(period: string, start?: Date, end?: Date) {
-    if (start && end) {
-      return {
-        currentPeriod: { startDate: start, endDate: end },
-        previousPeriod: {
-          startDate: new Date(start.getTime() - 30 * 24 * 60 * 60 * 1000),
-          endDate: new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000),
-        },
-      };
+  private getTimeRange(query: DashboardQueryDto) {
+    if (query.period) {
+      return this.getPeriodDates(query.period);
     }
 
+    const currentStart = query.startDate ? new Date(query.startDate) : new Date();
+    const currentEnd = query.endDate ? new Date(query.endDate) : new Date();
+
+    // Calculate the duration in milliseconds
+    const duration = currentEnd.getTime() - currentStart.getTime();
+
+    // Calculate previous period with same duration
+    const previousStart = new Date(currentStart.getTime() - duration);
+    const previousEnd = new Date(currentEnd.getTime() - duration);
+
+    return {
+      currentPeriod: { startDate: currentStart, endDate: currentEnd },
+      previousPeriod: { startDate: previousStart, endDate: previousEnd },
+    };
+  }
+
+  private getPeriodDates(period: string) {
     const now = new Date();
     const days = parseInt(period.replace('d', ''));
 
