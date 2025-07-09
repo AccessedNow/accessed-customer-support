@@ -75,8 +75,10 @@ export class DashboardController {
   async getMetrics(
     @Query('period') period: string = '30d',
     @Query('compare') compare: boolean = true,
+    @Query('start') start?: Date,
+    @Query('end') end?: Date,
   ) {
-    return this.dashboardService.getMetrics(period, compare);
+    return this.dashboardService.getMetrics(period, compare, start, end);
   }
 
   @Get('tickets-trend')
@@ -131,8 +133,10 @@ export class DashboardController {
   async getTicketsTrend(
     @Query('period') period: string = '7d',
     @Query('granularity') granularity: string = 'daily',
+    @Query('start') start?: Date,
+    @Query('end') end?: Date,
   ) {
-    return this.dashboardService.getTicketsTrend(period, granularity);
+    return this.dashboardService.getTicketsTrend(period, granularity, start, end);
   }
 
   @Get('first-reply-analysis')
@@ -189,8 +193,8 @@ export class DashboardController {
   })
   // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getFirstReplyAnalysis(@Query('period') period: string = '30d') {
-    return this.dashboardService.getFirstReplyAnalysis(period);
+  async getFirstReplyAnalysis(@Query('period') period: string = '30d', start?: Date, end?: Date) {
+    return this.dashboardService.getFirstReplyAnalysis(period, start, end);
   }
 
   @Get('channels-analysis')
@@ -256,8 +260,10 @@ export class DashboardController {
   async getChannelsAnalysis(
     @Query('period') period: string = '30d',
     @Query('status') status: string = 'active',
+    @Query('start') start?: Date,
+    @Query('end') end?: Date,
   ) {
-    return this.dashboardService.getChannelsAnalysis(period, status);
+    return this.dashboardService.getChannelsAnalysis(period, status, start, end);
   }
 
   @Get('customer-satisfaction')
@@ -307,8 +313,8 @@ export class DashboardController {
   })
   // @RequirePrivileges('VIEW_DASHBOARD')
   @Public()
-  async getCustomerSatisfaction(@Query('period') period: string = '30d') {
-    return this.dashboardService.getCustomerSatisfaction(period);
+  async getCustomerSatisfaction(@Query('period') period: string = '30d', start?: Date, end?: Date) {
+    return this.dashboardService.getCustomerSatisfaction(period, start, end);
   }
 
   @Get('overview')
