@@ -57,8 +57,13 @@ export class DashboardService {
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
   ) {}
 
-  async getMetrics(period: string = '30d', compare: boolean = true): Promise<MetricsResponse> {
-    const { currentPeriod, previousPeriod } = this.getPeriodDates(period);
+  async getMetrics(
+    period: string = '30d',
+    compare: boolean = true,
+    start?: Date,
+    end?: Date,
+  ): Promise<MetricsResponse> {
+    const { currentPeriod, previousPeriod } = this.getPeriodDates(period, start, end);
 
     const [
       currentCreated,
@@ -110,8 +115,13 @@ export class DashboardService {
     };
   }
 
-  async getTicketsTrend(period: string = '7d', _granularity: string = 'daily') {
-    const { startDate, endDate } = this.getPeriodRange(period);
+  async getTicketsTrend(
+    period: string = '7d',
+    _granularity: string = 'daily',
+    start?: Date,
+    end?: Date,
+  ) {
+    const { startDate, endDate } = this.getPeriodRange(period, start, end);
 
     const pipeline = [
       {
@@ -164,8 +174,8 @@ export class DashboardService {
     };
   }
 
-  async getFirstReplyAnalysis(period: string = '30d') {
-    const { startDate, endDate } = this.getPeriodRange(period);
+  async getFirstReplyAnalysis(period: string = '30d', start?: Date, end?: Date) {
+    const { startDate, endDate } = this.getPeriodRange(period, start, end);
 
     const pipeline = [
       {
@@ -252,8 +262,13 @@ export class DashboardService {
     };
   }
 
-  async getChannelsAnalysis(period: string = '30d', status: string = 'active') {
-    const { startDate, endDate } = this.getPeriodRange(period);
+  async getChannelsAnalysis(
+    period: string = '30d',
+    status: string = 'active',
+    start?: Date,
+    end?: Date,
+  ) {
+    const { startDate, endDate } = this.getPeriodRange(period, start, end);
 
     const matchCondition: any = {
       createdAt: { $gte: startDate, $lte: endDate },
@@ -291,10 +306,10 @@ export class DashboardService {
     };
   }
 
-  async getCustomerSatisfaction(period: string = '30d') {
+  async getCustomerSatisfaction(period: string = '30d', start?: Date, end?: Date) {
     // This would typically come from a separate feedback/survey system
     // For now, we'll simulate based on ticket resolution patterns
-    const { currentPeriod, previousPeriod } = this.getPeriodDates(period);
+    const { currentPeriod, previousPeriod } = this.getPeriodDates(period, start, end);
 
     const [currentSatisfaction, previousSatisfaction] = await Promise.all([
       this.calculateSatisfactionMetrics(currentPeriod),
@@ -332,12 +347,17 @@ export class DashboardService {
     };
   }
 
-  async getDashboardOverview(period: string = '30d', compare: boolean = true) {
+  async getDashboardOverview(
+    period: string = '30d',
+    compare: boolean = true,
+    start?: Date,
+    end?: Date,
+  ) {
     const [metrics, ticketsTrend, firstReplyAnalysis, channelsAnalysis, customerSatisfaction] =
       await Promise.all([
         this.getMetrics(period, compare),
-        this.getTicketsTrend('7d'),
-        this.getFirstReplyAnalysis(period),
+        this.getTicketsTrend('7d', 'daily', start, end),
+        this.getFirstReplyAnalysis(period, start, end),
         this.getChannelsAnalysis(period, 'active'),
         this.getCustomerSatisfaction(period),
       ]);
@@ -352,7 +372,17 @@ export class DashboardService {
   }
 
   // Helper methods
-  private getPeriodDates(period: string) {
+  private getPeriodDates(period: string, start?: Date, end?: Date) {
+    if (start && end) {
+      return {
+        currentPeriod: { startDate: start, endDate: end },
+        previousPeriod: {
+          startDate: new Date(start.getTime() - 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000),
+        },
+      };
+    }
+
     const now = new Date();
     const days = parseInt(period.replace('d', ''));
 
@@ -368,7 +398,11 @@ export class DashboardService {
     };
   }
 
-  private getPeriodRange(period: string) {
+  private getPeriodRange(period: string, startDate?: Date, endDate?: Date) {
+    if (startDate && endDate) {
+      return { startDate, endDate };
+    }
+
     const now = new Date();
     const days = parseInt(period.replace('d', ''));
 
