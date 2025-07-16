@@ -11,7 +11,7 @@ export class AppController {
   @Get()
   @ApiOperation({ summary: 'Root endpoint' })
   @ApiResponse({ status: 200, description: 'OK' })
-  @HttpCode(HttpStatus.NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
   getRoot() {
     return null;
   }
@@ -21,7 +21,7 @@ export class AppController {
   @Version('')
   @ApiOperation({ summary: 'Health endpoint' })
   @ApiResponse({ status: 200, description: 'OK' })
-  @HttpCode(HttpStatus.NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
   health() {
     return null;
   }

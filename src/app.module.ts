@@ -32,7 +32,12 @@ import * as https from 'https';
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      envFilePath: process.env.NODE_ENV === 'development' ? '.env.dev' : '.env',
+      envFilePath:
+        {
+          production: '.env.production',
+          uat: '.env.uat',
+          staging: '.env.staging',
+        }[process.env.NODE_ENV] || '.env',
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
