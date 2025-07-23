@@ -58,6 +58,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
 
   protected async findUserInCompany(id: string) {
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
+    const companyId = this.configService.get<string>('ACCESSED_COMPANY_ID');
     const token = this.token;
 
     const user = await this.repository.findOneByCondition({
@@ -69,14 +70,11 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
 
     const { data: entityExisting } = await firstValueFrom(
       this.httpService
-        .get<any>(
-          `${partyServiceUrl}/api/admin/company/4:23b2fe67-07bd-4b24-b0df-087ad126c675:291738/members/${id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+        .get<any>(`${partyServiceUrl}/api/admin/company/${companyId}/members/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-        )
+        })
         .pipe(
           catchError((error: AxiosError) => {
             this.logger.error(`Failed to fetch user data: ${error.message}`);
@@ -94,6 +92,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
       firstName: entityExisting.data.firstName,
       lastName: entityExisting.data.lastName,
       email: entityExisting.data.primaryEmail?.value,
+      messengerId: entityExisting.data?.messengerId,
       phoneNumber: entityExisting.data.primaryPhone?.value,
       avatar: entityExisting.data.avatar,
       status: entityExisting.data.status,
@@ -145,6 +144,7 @@ export abstract class BaseServiceAbstract<T extends BaseSchema> implements BaseS
       firstName: entityExisting.data.customer.firstName,
       middleName: entityExisting.data.customer.middleName,
       lastName: entityExisting.data.customer.lastName,
+      messengerId: entityExisting.data.customer?.messengerId,
       email: entityExisting.data.customer.primaryEmail?.value,
       phoneNumber: entityExisting.data.customer.primaryPhone?.value,
       avatar: entityExisting.data.customer.avatar,

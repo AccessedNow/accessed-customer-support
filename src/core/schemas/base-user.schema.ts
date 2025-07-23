@@ -25,6 +25,9 @@ export class BaseUserSchema extends BaseSchema {
   partyType: string;
 
   @Prop({ required: false })
+  messengerId: string;
+
+  @Prop({ required: false })
   city: string;
 
   @Prop({ required: false })

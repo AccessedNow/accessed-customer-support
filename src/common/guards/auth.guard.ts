@@ -91,6 +91,7 @@ export class AuthGuard implements CanActivate {
     }
 
     const partyServiceUrl = this.configService.get<string>('PARTY_SERVICE_URL');
+    const companyId = this.configService.get<string>('ACCESSED_COMPANY_ID');
 
     if (!token) {
       return null;
@@ -98,19 +99,16 @@ export class AuthGuard implements CanActivate {
 
     try {
       this.logger.debug(
-        `Making request to ${partyServiceUrl}/api/admin/company/4:6db934cb-9aba-4675-a007-eb0d31c51391:291738/members/${userId}`,
+        `Making request to ${partyServiceUrl}/api/admin/company/${companyId}/members/${userId}`,
       );
 
       const { data: entityExisting } = await firstValueFrom(
         this.httpService
-          .get<any>(
-            `${partyServiceUrl}/api/admin/company/4:6db934cb-9aba-4675-a007-eb0d31c51391:291738/members/${userId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+          .get<any>(`${partyServiceUrl}/api/admin/company/${companyId}/members/${userId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
             },
-          )
+          })
           .pipe(
             catchError((error: AxiosError) => {
               if (error.response) {

@@ -196,6 +196,20 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         viewTicketUrl: ticket._id.toString(),
       },
     });
+    if (assignee?.messengerId && customer?.messengerId) {
+      const { data: conversation } = await messageClient.post('/sys/conversations', {
+        type: 'SUPPORT',
+        members: [assignee?.messengerId, customer?.messengerId],
+        title: '',
+        meta: {
+          ticketId: ticket._id.toString(),
+          customerId: customer.customerId,
+        },
+      });
+      if (conversation?.data) {
+        ticket.meta.conversationId = conversation.data._id;
+      }
+    }
 
     return ticket;
   }
@@ -719,4 +733,3 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     };
   }
 }
-
