@@ -11,6 +11,15 @@ export const validationSchema = Joi.object({
   CORS_ORIGINS: Joi.string().optional(),
 
   MONGO_URI: Joi.string().required(),
+
+  // RabbitMQ Configuration
+  RABBITMQ_SERVER_URL: Joi.string()
+    .pattern(/^amqps?:\/\//)
+    .required(),
+  RABBITMQ_NOTIFICATION_QUEUE: Joi.string().required(),
+  RABBITMQ_PREFETCH_COUNT: Joi.number().integer().min(1).default(10),
+  RABBITMQ_RETRY_ATTEMPTS: Joi.number().integer().min(0).default(3),
+  RABBITMQ_RETRY_DELAY: Joi.number().integer().min(0).default(1000),
 });
 
 export const validationOptions = {

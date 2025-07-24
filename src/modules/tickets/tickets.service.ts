@@ -35,6 +35,8 @@ import { firstValueFrom } from 'rxjs';
 import * as _ from 'lodash';
 import { CUSTOMER_FIELDS } from './dto/customer-info.dto';
 import { HttpClientFactoryService } from 'src/common/services/http-client-factory.service';
+import { RabbitmqService } from 'src/common/services/rabbitmq.service';
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TicketsService extends BaseServiceAbstract<Ticket> {
@@ -51,6 +53,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     private readonly filesService: FilesService,
     private readonly usersService: UsersService,
     private readonly httpClientFactory: HttpClientFactoryService,
+    private readonly rabbitmqService: RabbitmqService,
   ) {
     super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
@@ -196,6 +199,48 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         viewTicketUrl: ticket._id.toString(),
       },
     });
+    if (assignee?.messengerId && customer?.messengerId) {
+      const { data: conversation } = await messageClient.post('/sys/conversations', {
+        type: 'SUPPORT',
+        members: [assignee?.messengerId, customer?.messengerId],
+        title: '',
+        meta: {
+          ticketId: ticket._id.toString(),
+          customerId: customer.customerId,
+        },
+      });
+      if (conversation?.data) {
+        ticket.meta.conversationId = conversation.data._id;
+      }
+    }
+
+    // if (assignee) {
+    //   await this.sendTicketAssignmentNotification({
+    //     assignee,
+    //     ticket: {
+    //       id: ticket._id.toString(),
+    //       ticketId: ticketId,
+    //       subject: createTicketDto.subject,
+    //       ticketType: ticketType,
+    //       priority: priority,
+    //     },
+    //     assignedBy: user
+    //       ? {
+    //           id: userExists._id.toString(),
+    //           partyId: userExists.partyId,
+    //           name: userExists.name,
+    //           email: userExists?.email || '',
+    //           avatar: userExists.avatar,
+    //         }
+    //       : {
+    //           id: customer._id.toString(),
+    //           partyId: customer.customerId,
+    //           name: customer.name,
+    //           email: customer?.email || '',
+    //           avatar: customer.avatar,
+    //         },
+    //   });
+    // }
 
     return ticket;
   }
@@ -393,11 +438,12 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
 
     const assigneeId = (updateTicketDto as any).assigneeId;
+    let newAssignee = null;
     if (
       assigneeId &&
       (!ticket?.assignee?.assigneeId || assigneeId !== ticket.assignee?.assigneeId)
     ) {
-      const assignee = await this.handleAssignee(assigneeId);
+      newAssignee = await this.handleAssignee(assigneeId);
       changes['assigneeId'] = {
         from: ticket?.assignee?.assigneeId,
         to: assigneeId,
@@ -405,10 +451,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
       updateData['assigneeId'] = assigneeId;
       updateData['assignee'] = {
-        id: assignee._id?.toString(),
-        partyId: assignee.partyId,
-        name: assignee.name,
-        avatar: assignee.avatar,
+        id: newAssignee._id?.toString(),
+        partyId: newAssignee.partyId,
+        name: newAssignee.name,
+        email: newAssignee?.email || '',
+        avatar: newAssignee.avatar,
       };
     }
 
@@ -435,6 +482,27 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const updatedTicket = await this.ticketsRepository.update(id, updateData);
 
     await this.handleClosedTicket(updatedTicket);
+
+    // if (newAssignee && changes['assigneeId']) {
+    //   await this.sendTicketReassignmentNotification({
+    //     assignee: newAssignee,
+    //     ticket: {
+    //       id: updatedTicket._id.toString(),
+    //       ticketId: updatedTicket.ticketId,
+    //       subject: updatedTicket.subject,
+    //       ticketType: updatedTicket.ticketType,
+    //       priority: updatedTicket.priority,
+    //     },
+    //     previousAssignee: ticket.assignee?.name,
+    //     assignedBy: {
+    //       id: createdBy._id.toString(),
+    //       partyId: createdBy.partyId,
+    //       name: createdBy.name,
+    //       email: createdBy?.email || '',
+    //       avatar: createdBy.avatar,
+    //     },
+    //   });
+    // }
 
     // Convert Mongoose document to plain object and return only necessary data
     const plainTicket = this.transformTicketResponse(updatedTicket);
@@ -718,5 +786,110 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       message: `Successfully removed follower ${follower.name} from ticket ${ticketId}`,
     };
   }
-}
 
+  /**
+   * Send ticket assignment notification via RabbitMQ
+   */
+  private async sendTicketAssignmentNotification(data: {
+    assignee: User;
+    ticket: {
+      id: string;
+      ticketId: string;
+      subject: string;
+      ticketType: string;
+      priority: string;
+    };
+    assignedBy?: {
+      id: string;
+      partyId: string;
+      name: string;
+      email: string;
+      avatar: string;
+    };
+  }): Promise<void> {
+    try {
+      const notificationData = NotificationHelper.createTicketAssignedNotification({
+        assignee: {
+          id: data.assignee._id.toString(),
+          partyId: data.assignee.partyId,
+          name: data.assignee.name,
+          email: data.assignee.email,
+          avatar: data.assignee.avatar,
+          messengerId: data.assignee.messengerId,
+        },
+        ticket: data.ticket,
+        assignedBy: data.assignedBy,
+      });
+
+      this.rabbitmqService.sendTicketAssignmentNotification(notificationData).subscribe({
+        next: (_result) => {
+          this.logger.log(
+            `Ticket assignment notification sent successfully for user: ${data.assignee.name}`,
+          );
+        },
+        error: (error) => {
+          this.logger.error(
+            `Failed to send ticket assignment notification: ${error.message}`,
+            error,
+          );
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Error creating ticket assignment notification: ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Send ticket reassignment notification via RabbitMQ
+   */
+  private async sendTicketReassignmentNotification(data: {
+    assignee: User;
+    ticket: {
+      id: string;
+      ticketId: string;
+      subject: string;
+      ticketType: string;
+      priority: string;
+    };
+    previousAssignee?: string;
+    assignedBy?: {
+      id: string;
+      partyId: string;
+      name: string;
+      email: string;
+      avatar: string;
+    };
+  }): Promise<void> {
+    try {
+      const notificationData = NotificationHelper.createTicketReassignedNotification({
+        assignee: {
+          id: data.assignee._id.toString(),
+          partyId: data.assignee.partyId,
+          name: data.assignee.name,
+          email: data.assignee.email,
+          avatar: data.assignee.avatar,
+          messengerId: data.assignee.messengerId,
+        },
+        ticket: data.ticket,
+        previousAssignee: data.previousAssignee,
+        assignedBy: data.assignedBy,
+      });
+
+      this.rabbitmqService.sendTicketAssignmentNotification(notificationData).subscribe({
+        next: (_result) => {
+          this.logger.log(
+            `Ticket reassignment notification sent successfully for user: ${data.assignee.name}`,
+          );
+        },
+        error: (error) => {
+          this.logger.error(
+            `Failed to send ticket reassignment notification: ${error.message}`,
+            error,
+          );
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Error creating ticket reassignment notification: ${error.message}`, error);
+    }
+  }
+}
