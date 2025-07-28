@@ -20,6 +20,8 @@ import { Types } from 'mongoose';
 import { FilesService } from '../files/files.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { UsersService } from '../users/users.service';
+import { RabbitmqService } from 'src/common/services/rabbitmq.service';
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
 
 @Injectable({ scope: Scope.REQUEST })
 export class NotesService extends BaseServiceAbstract<Note> {
@@ -34,6 +36,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
     private readonly filesService: FilesService,
     private readonly ticketsService: TicketsService,
     private readonly usersService: UsersService,
+    private readonly rabbitmqService: RabbitmqService,
   ) {
     super(notesRepository, httpService, configService, new Logger(NotesService.name));
   }
@@ -110,7 +113,7 @@ export class NotesService extends BaseServiceAbstract<Note> {
       ticket: new Types.ObjectId(ticketId),
       createdBy: {
         id: createdBy._id.toString(),
-        name: createdBy.name,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
         avatar: createdBy.avatar,
       },
     });
@@ -140,6 +143,20 @@ export class NotesService extends BaseServiceAbstract<Note> {
           }),
         ),
       );
+    }
+
+    // Send notification if ticket has assignee
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId) {
+        await this.sendAddNoteNotification(assignee, note, ticket, {
+          id: createdBy._id.toString(),
+          partyId: createdBy.partyId,
+          name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+          email: createdBy.email,
+          avatar: createdBy.avatar,
+        });
+      }
     }
 
     return { newNote: note, activity };
@@ -257,6 +274,22 @@ export class NotesService extends BaseServiceAbstract<Note> {
     }
 
     const noteUpdated = await this.notesRepository.update(id, updateData);
+
+    // Send notification if ticket has assignee
+    const ticket = await this.ticketsService.findOneById(ticketId);
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId) {
+        await this.sendUpdateNoteNotification(assignee, noteUpdated, note.content, ticket, {
+          id: updatedBy._id.toString(),
+          partyId: updatedBy.partyId,
+          name: updatedBy.name || updatedBy.firstName + ' ' + updatedBy.lastName,
+          email: updatedBy.email,
+          avatar: updatedBy.avatar,
+        });
+      }
+    }
+
     return { noteUpdated, activity };
   }
 
@@ -288,6 +321,200 @@ export class NotesService extends BaseServiceAbstract<Note> {
       },
     });
 
+    // Send notification if ticket has assignee
+    const ticket = await this.ticketsService.findOneById(ticketId);
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId) {
+        await this.sendDeleteNoteNotification(assignee, noteExists, ticket, {
+          id: deletedBy._id.toString(),
+          partyId: deletedBy.partyId,
+          name: deletedBy.name || deletedBy.firstName + ' ' + deletedBy.lastName,
+          email: deletedBy.email,
+          avatar: deletedBy.avatar,
+        });
+      }
+    }
+
     return { success: true, activity };
+  }
+
+  /**
+   * Send notification via RabbitMQ
+   */
+  private async sendNotification(notificationData: any, eventType: string): Promise<void> {
+    try {
+      this.rabbitmqService.sendToNotificationQueue(notificationData).subscribe({
+        next: (_result) => {
+          this.logger.log(`${eventType} notification sent successfully`);
+        },
+        error: (error) => {
+          this.logger.error(`Failed to send ${eventType} notification: ${error.message}`, error);
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Error creating ${eventType} notification: ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Get all notification recipients from ticket (assignee + followers) without duplicates
+   */
+  private async getNotificationRecipientsFromTicket(ticket: any): Promise<any[]> {
+    const recipients: any[] = [];
+    const recipientIds = new Set<string>();
+
+    // Add ticket assignee if exists
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId && !recipientIds.has(assignee._id.toString())) {
+        recipients.push(assignee);
+        recipientIds.add(assignee._id.toString());
+      }
+    }
+
+    // Add ticket followers
+    if (ticket?.followers && ticket.followers.length > 0) {
+      for (const followerId of ticket.followers) {
+        if (!recipientIds.has(followerId.toString())) {
+          const follower = await this.usersService.findOne(followerId);
+          if (follower?.messengerId) {
+            recipients.push(follower);
+            recipientIds.add(follower._id.toString());
+          }
+        }
+      }
+    }
+
+    return recipients;
+  }
+
+  /**
+   * Send notification to multiple recipients
+   */
+  private async sendNotificationToRecipients(
+    recipients: any[],
+    createNotificationData: (recipient: any) => any,
+    eventType: string,
+  ): Promise<void> {
+    const notificationPromises = recipients.map(async (recipient) => {
+      const notificationData = createNotificationData(recipient);
+      return this.sendNotification(notificationData, eventType);
+    });
+
+    await Promise.all(notificationPromises);
+  }
+
+  /**
+   * Send add note notification
+   */
+  private async sendAddNoteNotification(
+    assignee: any,
+    note: any,
+    ticket: any,
+    createdBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createAddNoteNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          note: {
+            id: note._id.toString(),
+            content: note.content,
+            ticketId: note.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          createdBy,
+        }),
+      'ADD_NOTE',
+    );
+  }
+
+  /**
+   * Send update note notification
+   */
+  private async sendUpdateNoteNotification(
+    assignee: any,
+    note: any,
+    previousContent: string,
+    ticket: any,
+    updatedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createUpdateNoteNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          note: {
+            id: note._id.toString(),
+            content: note.content,
+            ticketId: note.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          previousContent,
+          updatedBy,
+        }),
+      'UPDATE_NOTE',
+    );
+  }
+
+  /**
+   * Send delete note notification
+   */
+  private async sendDeleteNoteNotification(
+    assignee: any,
+    note: any,
+    ticket: any,
+    deletedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createDeleteNoteNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          note: {
+            id: note._id.toString(),
+            content: note.content,
+            ticketId: note.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          deletedBy,
+        }),
+      'DELETE_NOTE',
+    );
   }
 }
