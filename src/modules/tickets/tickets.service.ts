@@ -74,8 +74,13 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       assigneeId,
     } = createTicketDto;
 
-    // Validate subtype belongs to type if provided
-    if (ticketSubtype && !TYPE_TO_SUBTYPE[ticketType]?.includes(ticketSubtype)) {
+    // Validate subtype belongs to type if provided (skip validation for custom values)
+    if (
+      ticketSubtype &&
+      ticketType !== 'CUSTOM' &&
+      ticketSubtype !== 'CUSTOM' &&
+      !TYPE_TO_SUBTYPE[ticketType]?.includes(ticketSubtype)
+    ) {
       throw new BadRequestException(
         `Invalid subtype ${ticketSubtype} for ticket type ${ticketType}`,
       );
@@ -107,9 +112,29 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       createTicketDto.meta.invoice = invoice.data;
     }
 
+    // Handle custom ticket type and subtype
+    const finalTicketType =
+      createTicketDto.ticketType === 'CUSTOM'
+        ? createTicketDto.customTicketType
+        : createTicketDto.ticketType;
+
+    const finalTicketSubtype =
+      createTicketDto.ticketSubtype === 'CUSTOM'
+        ? createTicketDto.customTicketSubtype
+        : createTicketDto.ticketSubtype;
+
     const ticketData = {
       ...createTicketDto,
       ticketId,
+      ticketType: finalTicketType,
+      ticketSubtype: finalTicketSubtype,
+      // Store custom values if provided
+      customTicketType:
+        createTicketDto.ticketType === 'CUSTOM' ? createTicketDto.customTicketType : undefined,
+      customTicketSubtype:
+        createTicketDto.ticketSubtype === 'CUSTOM'
+          ? createTicketDto.customTicketSubtype
+          : undefined,
       customer: {
         id: customer._id,
         customerId: customer.customerId,
@@ -306,6 +331,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       priority: 'priority',
       assignedTo: 'assignee.id',
       customerId: 'customer.customerId',
+      customTicketType: 'customTicketType',
+      customTicketSubtype: 'customTicketSubtype',
     };
 
     const conditions = QueryBuilderUtil.buildFilterConditions(query, filterMap);
@@ -384,11 +411,29 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const updateData: Record<string, any> = {};
     let activity = null;
 
-    const basicFields = ['subject', 'message', 'ticketType'];
+    const basicFields = ['subject', 'message'];
     for (const field of basicFields) {
       if (updateTicketDto[field] !== undefined && updateTicketDto[field] !== ticket[field]) {
         changes[field] = { from: ticket[field], to: updateTicketDto[field] };
         updateData[field] = updateTicketDto[field];
+      }
+    }
+
+    // Handle ticketType separately to support custom values
+    if (
+      updateTicketDto.ticketType !== undefined &&
+      updateTicketDto.ticketType !== ticket.ticketType
+    ) {
+      const finalTicketType =
+        updateTicketDto.ticketType === 'CUSTOM'
+          ? updateTicketDto.customTicketType
+          : updateTicketDto.ticketType;
+
+      changes['ticketType'] = { from: ticket.ticketType, to: finalTicketType };
+      updateData['ticketType'] = finalTicketType;
+
+      if (updateTicketDto.ticketType === 'CUSTOM') {
+        updateData['customTicketType'] = updateTicketDto.customTicketType;
       }
     }
 
@@ -399,8 +444,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     ) {
       const ticketType = updateTicketDto.ticketType || ticket.ticketType;
 
+      // Skip validation for custom values
       if (
         updateTicketDto.ticketSubtype &&
+        ticketType !== 'CUSTOM' &&
+        updateTicketDto.ticketSubtype !== 'CUSTOM' &&
         !TYPE_TO_SUBTYPE[ticketType]?.includes(updateTicketDto.ticketSubtype)
       ) {
         throw new BadRequestException(
@@ -408,8 +456,18 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         );
       }
 
-      changes['ticketSubtype'] = { from: ticket.ticketSubtype, to: updateTicketDto.ticketSubtype };
-      updateData['ticketSubtype'] = updateTicketDto.ticketSubtype;
+      // Handle custom subtype
+      const finalTicketSubtype =
+        updateTicketDto.ticketSubtype === 'CUSTOM'
+          ? updateTicketDto.customTicketSubtype
+          : updateTicketDto.ticketSubtype;
+
+      changes['ticketSubtype'] = { from: ticket.ticketSubtype, to: finalTicketSubtype };
+      updateData['ticketSubtype'] = finalTicketSubtype;
+
+      if (updateTicketDto.ticketSubtype === 'CUSTOM') {
+        updateData['customTicketSubtype'] = updateTicketDto.customTicketSubtype;
+      }
     }
 
     if (updateTicketDto.status && updateTicketDto.status !== ticket.status) {
@@ -1098,3 +1156,4 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     );
   }
 }
+
