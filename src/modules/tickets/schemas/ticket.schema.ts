@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import * as mongoosePaginate from 'mongoose-paginate-v2';
-import { Priority, TicketStatus, TICKET_TYPE, TICKET_SUBTYPE } from 'src/common/enums/ticket.enum';
+import { Priority, TicketStatus, TICKET_TYPE } from 'src/common/enums/ticket.enum';
 import { BaseSchema } from 'src/core/schemas/base/base.schema';
 
 export type TicketDocument = Ticket & Document;
@@ -28,11 +28,17 @@ export class Ticket extends BaseSchema {
   @Prop({ required: true })
   message: string;
 
-  @Prop({ required: true, enum: TICKET_TYPE, default: TICKET_TYPE.ACCOUNT })
+  @Prop({ required: true, default: TICKET_TYPE.ACCOUNT })
   ticketType: string;
 
-  @Prop({ enum: TICKET_SUBTYPE })
+  @Prop()
+  customTicketType: string;
+
+  @Prop()
   ticketSubtype: string;
+
+  @Prop()
+  customTicketSubtype: string;
 
   @Prop({ required: true, enum: Priority, default: Priority.MEDIUM })
   priority: string;
@@ -63,6 +69,8 @@ export const TicketSchema = SchemaFactory.createForClass(Ticket);
 
 // Compound index for popular filter fields
 TicketSchema.index({ status: 1, priority: 1, ticketType: 1, ticketSubtype: 1 });
+// Index for custom fields
+TicketSchema.index({ customTicketType: 1, customTicketSubtype: 1 });
 // Index for customerId because often query by customer
 TicketSchema.index({ customerId: 1 });
 // Index for sort
@@ -121,3 +129,4 @@ TicketSchema.virtual('files', {
 });
 
 TicketSchema.plugin(mongoosePaginate);
+

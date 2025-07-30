@@ -8,6 +8,7 @@ import { TasksRepository } from 'src/core/repositories/tasks.repository';
 import { TicketsModule } from '../tickets/tickets.module';
 import { ActivitiesModule } from '../activities/activities.module';
 import { UsersModule } from '../users/users.module';
+import { RabbitmqModule } from '../../common/modules/rabbitmq.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UsersModule } from '../users/users.module';
     TicketsModule,
     ActivitiesModule,
     UsersModule,
+    RabbitmqModule,
   ],
   controllers: [TasksController],
   providers: [TasksService, { provide: 'TasksRepositoryInterface', useClass: TasksRepository }],

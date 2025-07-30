@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
 import { Observable, timeout, catchError, retry, of } from 'rxjs';
+import * as amqp from 'amqplib';
 
 @Injectable()
 export class RabbitmqService {
@@ -101,10 +102,59 @@ export class RabbitmqService {
   }
 
   /**
-   * Send message directly to notification queue
+   * Send message directly to notification queue (raw data without pattern wrapper)
    */
   sendToNotificationQueue(messageData: any): Observable<any> {
-    return this.emitEvent('notification_queue', messageData);
+    return new Observable((observer) => {
+      this.sendRawMessageToQueue(messageData)
+        .then((result) => {
+          observer.next(result);
+          observer.complete();
+        })
+        .catch((error) => {
+          this.logger.error('Failed to send raw message to queue', error);
+          observer.error(error);
+        });
+    });
+  }
+
+  /**
+   * Send raw message to RabbitMQ queue without NestJS wrapper
+   */
+  private async sendRawMessageToQueue(messageData: any): Promise<any> {
+    const rabbitmqUrl = this.configService.get<string>('rabbitmq.url');
+    const queueName = this.configService.get<string>('rabbitmq.notificationQueue');
+
+    try {
+      // Create direct AMQP connection
+      const connection = await amqp.connect(rabbitmqUrl);
+      const channel = await connection.createChannel();
+
+      // Ensure queue exists
+      await channel.assertQueue(queueName, {
+        durable: true,
+      });
+
+      // Send message as raw JSON without pattern wrapper
+      const messageBuffer = Buffer.from(JSON.stringify(messageData));
+      const success = channel.sendToQueue(queueName, messageBuffer, {
+        persistent: true,
+        contentType: 'application/json',
+      });
+
+      // Close connection
+      await channel.close();
+      await connection.close();
+
+      return {
+        success,
+        messageId: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to send raw message via direct AMQP', error);
+      throw error;
+    }
   }
 
   /**
