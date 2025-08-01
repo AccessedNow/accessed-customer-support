@@ -21,6 +21,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AuthGuard } from './common/guards/auth.guard';
 import { HttpModule } from '@nestjs/axios';
 import { HttpClientModule } from './common/modules/http-client.module';
+import { RabbitmqModule } from './common/modules/rabbitmq.module';
 import * as https from 'https';
 
 @Module({
@@ -32,7 +33,12 @@ import * as https from 'https';
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      envFilePath: process.env.NODE_ENV === 'development' ? '.env.dev' : '.env',
+      envFilePath:
+        {
+          production: '.env.production',
+          uat: '.env.uat',
+          staging: '.env.staging',
+        }[process.env.NODE_ENV] || '.env',
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -61,6 +67,7 @@ import * as https from 'https';
       inject: [ConfigService],
     }),
     HttpClientModule,
+    RabbitmqModule,
     HealthModule,
     TicketsModule,
     ActivitiesModule,

@@ -16,6 +16,8 @@ async function bootstrap() {
   const corsEnabled = configService.get<boolean>('app.corsEnabled');
   const corsOrigins = configService.get<string[]>('app.corsOrigins');
 
+  console.log('nodeEnv', nodeEnv);
+
   // Set global API prefix with exclusions for root and health routes
   app.setGlobalPrefix(apiPrefix, {
     exclude: ['', 'health'],

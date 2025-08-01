@@ -9,6 +9,7 @@ import { ActivitiesModule } from '../activities/activities.module';
 import { FilesModule } from '../files/files.module';
 import { TicketsModule } from '../tickets/tickets.module';
 import { UsersModule } from '../users/users.module';
+import { RabbitmqModule } from '../../common/modules/rabbitmq.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UsersModule } from '../users/users.module';
     FilesModule,
     TicketsModule,
     UsersModule,
+    RabbitmqModule,
   ],
   controllers: [NotesController],
   providers: [NotesService, { provide: 'NotesRepositoryInterface', useClass: NotesRepository }],

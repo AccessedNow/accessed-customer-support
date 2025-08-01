@@ -11,6 +11,7 @@ import { ActivitiesModule } from '../activities/activities.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FilesModule } from '../files/files.module';
 import { UsersModule } from '../users/users.module';
+import { RabbitmqModule } from '../../common/modules/rabbitmq.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { UsersModule } from '../users/users.module';
     CustomersModule,
     FilesModule,
     UsersModule,
+    RabbitmqModule,
   ],
   controllers: [TicketsController],
   providers: [

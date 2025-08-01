@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { Priority, TICKET_TYPE, TICKET_SUBTYPE } from 'src/common/enums/ticket.enum';
 import { CustomerInfoDto } from './customer-info.dto';
 
@@ -28,23 +36,49 @@ export class CreateTicketDto extends CustomerInfoDto {
   message: string;
 
   @ApiProperty({
-    description: 'Type of ticket',
-    enum: TICKET_TYPE,
+    description:
+      'Type of ticket. Use predefined enum values or set to "CUSTOM" to use customTicketType',
+    enum: [...Object.values(TICKET_TYPE), 'CUSTOM'],
     example: TICKET_TYPE.ACCOUNT,
     default: TICKET_TYPE.ACCOUNT,
   })
-  @IsEnum(TICKET_TYPE)
+  @IsString()
   @IsNotEmpty()
   ticketType: string;
 
   @ApiProperty({
-    description: 'Subtype of ticket',
-    enum: TICKET_SUBTYPE,
+    description: 'Custom ticket type when ticketType is "CUSTOM"',
+    example: 'CUSTOM_SUPPORT',
+    required: false,
+  })
+  @ValidateIf((o) => o.ticketType === 'CUSTOM')
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  customTicketType?: string;
+
+  @ApiProperty({
+    description:
+      'Subtype of ticket. Use predefined enum values or set to "CUSTOM" to use customTicketSubtype',
+    enum: [...Object.values(TICKET_SUBTYPE), 'CUSTOM'],
     example: TICKET_SUBTYPE.ACCOUNT_REGISTRATION,
   })
-  @IsEnum(TICKET_SUBTYPE)
+  @IsString()
   @IsNotEmpty()
   ticketSubtype: string;
+
+  @ApiProperty({
+    description: 'Custom ticket subtype when ticketSubtype is "CUSTOM"',
+    example: 'ALLOW_USER_ENTER_NEW_VALUE',
+    required: false,
+  })
+  @ValidateIf((o) => o.ticketSubtype === 'CUSTOM')
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(100)
+  customTicketSubtype?: string;
 
   @ApiProperty({
     description: 'Priority of the ticket',
@@ -104,3 +138,4 @@ export class FileDto {
   })
   type: string;
 }
+

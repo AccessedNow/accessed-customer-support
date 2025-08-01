@@ -41,11 +41,12 @@ export class TicketsController {
     type: CreateTicketDto,
     description: 'Ticket creation data',
     examples: {
-      ticket: {
+      standardTicket: {
         value: {
           subject: 'VPN Access Request',
           message: 'Need VPN access for remote work during the upcoming business trip.',
-          ticketType: 'INVESTOR',
+          ticketType: TICKET_TYPE.ACCOUNT,
+          ticketSubtype: TICKET_SUBTYPE.ACCOUNT_AUTHENTICATION,
           priority: 'MEDIUM',
           source: 'POSTMAN',
           assigneeId: '4:6db934cb-9aba-4675-a007-eb0d31c51391:222',
@@ -63,6 +64,18 @@ export class TicketsController {
               type: 'document',
             },
           ],
+        },
+      },
+      customTicket: {
+        value: {
+          subject: 'Allow user to enter custom support category',
+          message: 'User needs support for a custom category not covered by existing options.',
+          ticketType: 'CUSTOM',
+          customTicketType: 'PROFILE_SUPPORT',
+          ticketSubtype: 'CUSTOM',
+          customTicketSubtype: 'ALLOW_USER_ENTER_NEW_VALUE',
+          priority: 'MEDIUM',
+          source: 'web',
         },
       },
     },
@@ -174,6 +187,16 @@ export class TicketsController {
           priority: Priority.HIGH,
           ticketType: TICKET_TYPE.ACCOUNT,
           ticketSubtype: TICKET_SUBTYPE.ACCOUNT_REGISTRATION,
+        },
+      },
+      customFilters: {
+        value: {
+          status: TicketStatus.OPEN,
+          priority: Priority.HIGH,
+          ticketType: 'CUSTOM',
+          customTicketType: 'PROFILE_SUPPORT',
+          ticketSubtype: 'CUSTOM',
+          customTicketSubtype: 'ALLOW_USER_ENTER_NEW_VALUE',
         },
       },
     },
@@ -459,9 +482,18 @@ export class TicketsController {
     type: UpdateTicketDto,
     description: 'Updated ticket information',
     examples: {
-      ticket: {
+      standardUpdate: {
         value: {
           status: TicketStatus.CLOSED,
+        },
+      },
+      customUpdate: {
+        value: {
+          ticketType: 'CUSTOM',
+          customTicketType: 'GENERAL_SUPPORT',
+          ticketSubtype: 'CUSTOM',
+          customTicketSubtype: 'ALLOW_USER_ENTER_NEW_VALUE',
+          status: TicketStatus.IN_PROGRESS,
         },
       },
     },
@@ -802,3 +834,4 @@ export class TicketsController {
     return this.ticketsService.removeFollower(id, followerId, user.id);
   }
 }
+
