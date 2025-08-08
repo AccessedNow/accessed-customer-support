@@ -6,10 +6,10 @@ export class BaseUserSchema extends BaseSchema {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   firstName: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   lastName: string;
 
   @Prop({ required: false })
@@ -23,6 +23,9 @@ export class BaseUserSchema extends BaseSchema {
 
   @Prop({ required: false })
   partyType: string;
+
+  @Prop({ required: false })
+  messengerId: string;
 
   @Prop({ required: false })
   city: string;

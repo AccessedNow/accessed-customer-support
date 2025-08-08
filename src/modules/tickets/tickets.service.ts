@@ -35,6 +35,8 @@ import { firstValueFrom } from 'rxjs';
 import * as _ from 'lodash';
 import { CUSTOMER_FIELDS } from './dto/customer-info.dto';
 import { HttpClientFactoryService } from 'src/common/services/http-client-factory.service';
+import { RabbitmqService } from 'src/common/services/rabbitmq.service';
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TicketsService extends BaseServiceAbstract<Ticket> {
@@ -51,6 +53,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     private readonly filesService: FilesService,
     private readonly usersService: UsersService,
     private readonly httpClientFactory: HttpClientFactoryService,
+    private readonly rabbitmqService: RabbitmqService,
   ) {
     super(ticketsRepository, httpService, configService, new Logger(TicketsService.name));
   }
@@ -71,8 +74,13 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       assigneeId,
     } = createTicketDto;
 
-    // Validate subtype belongs to type if provided
-    if (ticketSubtype && !TYPE_TO_SUBTYPE[ticketType]?.includes(ticketSubtype)) {
+    // Validate subtype belongs to type if provided (skip validation for custom values)
+    if (
+      ticketSubtype &&
+      ticketType !== 'CUSTOM' &&
+      ticketSubtype !== 'CUSTOM' &&
+      !TYPE_TO_SUBTYPE[ticketType]?.includes(ticketSubtype)
+    ) {
       throw new BadRequestException(
         `Invalid subtype ${ticketSubtype} for ticket type ${ticketType}`,
       );
@@ -104,9 +112,29 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       createTicketDto.meta.invoice = invoice.data;
     }
 
+    // Handle custom ticket type and subtype
+    const finalTicketType =
+      createTicketDto.ticketType === 'CUSTOM'
+        ? createTicketDto.customTicketType
+        : createTicketDto.ticketType;
+
+    const finalTicketSubtype =
+      createTicketDto.ticketSubtype === 'CUSTOM'
+        ? createTicketDto.customTicketSubtype
+        : createTicketDto.ticketSubtype;
+
     const ticketData = {
       ...createTicketDto,
       ticketId,
+      ticketType: finalTicketType,
+      ticketSubtype: finalTicketSubtype,
+      // Store custom values if provided
+      customTicketType:
+        createTicketDto.ticketType === 'CUSTOM' ? createTicketDto.customTicketType : undefined,
+      customTicketSubtype:
+        createTicketDto.ticketSubtype === 'CUSTOM'
+          ? createTicketDto.customTicketSubtype
+          : undefined,
       customer: {
         id: customer._id,
         customerId: customer.customerId,
@@ -172,7 +200,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       );
     }
 
-    const messageClient = this.httpClientFactory.getClient('message', {
+    const _messageClient = this.httpClientFactory.getClient('message', {
       baseURL: this.configService.get<string>('MESSAGE_SERVICE_URL'),
       timeout: 15000,
       retries: 2,
@@ -180,22 +208,57 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         'Content-Type': 'application/json',
       },
     });
-    await messageClient.post('/sys/mails/send', {
-      type: 'SUPPORT_TICKET_NOTIFICATION',
-      dataSupportTicketNotification: {
-        ticketId: ticketId,
-        customerName: customer.name,
-        customerEmail: customer.email,
-        priorityLevel: priority.toUpperCase(),
-        priorityLevelLower: priority.toLowerCase(),
-        ticketSubject: createTicketDto.subject,
-        ticketCategory: ticketType,
-        createdDate: new Date().toISOString().split('T')[0],
-        ticketStatus: TicketStatus.OPEN,
-        ticketDescription: createTicketDto.message,
-        viewTicketUrl: ticket._id.toString(),
-      },
-    });
+    // await messageClient.post('/sys/mails/send', {
+    //   type: 'SUPPORT_TICKET_NOTIFICATION',
+    //   dataSupportTicketNotification: {
+    //     ticketId: ticketId,
+    //     customerName: customer.name,
+    //     customerEmail: customer.email,
+    //     priorityLevel: priority.toUpperCase(),
+    //     priorityLevelLower: priority.toLowerCase(),
+    //     ticketSubject: createTicketDto.subject,
+    //     ticketCategory: ticketType,
+    //     createdDate: new Date().toISOString().split('T')[0],
+    //     ticketStatus: TicketStatus.OPEN,
+    //     ticketDescription: createTicketDto.message,
+    //     viewTicketUrl: ticket._id.toString(),
+    //   },
+    // });
+    // if (assignee?.messengerId && customer?.messengerId) {
+    //   const { data: conversation } = await messageClient.post('/sys/conversations', {
+    //     type: 'SUPPORT',
+    //     members: [assignee?.messengerId, customer?.messengerId],
+    //     title: '',
+    //     meta: {
+    //       ticketId: ticket._id.toString(),
+    //       customerId: customer.customerId,
+    //     },
+    //   });
+    //   if (conversation?.data) {
+    //     ticket.meta.conversationId = conversation.data._id;
+    //   }
+    // }
+
+    // Send notification if ticket has assignee
+    if (assignee) {
+      const assignedByData = user
+        ? {
+            id: userExists._id.toString(),
+            partyId: userExists.partyId,
+            name: userExists.name || userExists.firstName + ' ' + userExists.lastName,
+            email: userExists?.email || '',
+            avatar: userExists.avatar,
+          }
+        : {
+            id: customer._id.toString(),
+            partyId: customer.customerId,
+            name: customer.name || customer.firstName + ' ' + customer.lastName,
+            email: customer?.email || '',
+            avatar: customer.avatar,
+          };
+
+      await this.sendTicketAssignNotification(assignee, ticket, assignedByData);
+    }
 
     return ticket;
   }
@@ -268,6 +331,8 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       priority: 'priority',
       assignedTo: 'assignee.id',
       customerId: 'customer.customerId',
+      customTicketType: 'customTicketType',
+      customTicketSubtype: 'customTicketSubtype',
     };
 
     const conditions = QueryBuilderUtil.buildFilterConditions(query, filterMap);
@@ -346,11 +411,29 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const updateData: Record<string, any> = {};
     let activity = null;
 
-    const basicFields = ['subject', 'message', 'ticketType'];
+    const basicFields = ['subject', 'message'];
     for (const field of basicFields) {
       if (updateTicketDto[field] !== undefined && updateTicketDto[field] !== ticket[field]) {
         changes[field] = { from: ticket[field], to: updateTicketDto[field] };
         updateData[field] = updateTicketDto[field];
+      }
+    }
+
+    // Handle ticketType separately to support custom values
+    if (
+      updateTicketDto.ticketType !== undefined &&
+      updateTicketDto.ticketType !== ticket.ticketType
+    ) {
+      const finalTicketType =
+        updateTicketDto.ticketType === 'CUSTOM'
+          ? updateTicketDto.customTicketType
+          : updateTicketDto.ticketType;
+
+      changes['ticketType'] = { from: ticket.ticketType, to: finalTicketType };
+      updateData['ticketType'] = finalTicketType;
+
+      if (updateTicketDto.ticketType === 'CUSTOM') {
+        updateData['customTicketType'] = updateTicketDto.customTicketType;
       }
     }
 
@@ -361,8 +444,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     ) {
       const ticketType = updateTicketDto.ticketType || ticket.ticketType;
 
+      // Skip validation for custom values
       if (
         updateTicketDto.ticketSubtype &&
+        ticketType !== 'CUSTOM' &&
+        updateTicketDto.ticketSubtype !== 'CUSTOM' &&
         !TYPE_TO_SUBTYPE[ticketType]?.includes(updateTicketDto.ticketSubtype)
       ) {
         throw new BadRequestException(
@@ -370,8 +456,18 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         );
       }
 
-      changes['ticketSubtype'] = { from: ticket.ticketSubtype, to: updateTicketDto.ticketSubtype };
-      updateData['ticketSubtype'] = updateTicketDto.ticketSubtype;
+      // Handle custom subtype
+      const finalTicketSubtype =
+        updateTicketDto.ticketSubtype === 'CUSTOM'
+          ? updateTicketDto.customTicketSubtype
+          : updateTicketDto.ticketSubtype;
+
+      changes['ticketSubtype'] = { from: ticket.ticketSubtype, to: finalTicketSubtype };
+      updateData['ticketSubtype'] = finalTicketSubtype;
+
+      if (updateTicketDto.ticketSubtype === 'CUSTOM') {
+        updateData['customTicketSubtype'] = updateTicketDto.customTicketSubtype;
+      }
     }
 
     if (updateTicketDto.status && updateTicketDto.status !== ticket.status) {
@@ -393,11 +489,12 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
 
     const assigneeId = (updateTicketDto as any).assigneeId;
+    let newAssignee = null;
     if (
       assigneeId &&
       (!ticket?.assignee?.assigneeId || assigneeId !== ticket.assignee?.assigneeId)
     ) {
-      const assignee = await this.handleAssignee(assigneeId);
+      newAssignee = await this.handleAssignee(assigneeId);
       changes['assigneeId'] = {
         from: ticket?.assignee?.assigneeId,
         to: assigneeId,
@@ -405,10 +502,11 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
       updateData['assigneeId'] = assigneeId;
       updateData['assignee'] = {
-        id: assignee._id?.toString(),
-        partyId: assignee.partyId,
-        name: assignee.name,
-        avatar: assignee.avatar,
+        id: newAssignee._id?.toString(),
+        partyId: newAssignee.partyId,
+        name: newAssignee.name || newAssignee.firstName + ' ' + newAssignee.lastName,
+        email: newAssignee?.email || '',
+        avatar: newAssignee.avatar,
       };
     }
 
@@ -435,6 +533,104 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const updatedTicket = await this.ticketsRepository.update(id, updateData);
 
     await this.handleClosedTicket(updatedTicket);
+
+    // Send ADD_FOLLOW_UP notifications
+    if (changes['message'] && updatedTicket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(updatedTicket.assignee.id);
+      if (assignee?.messengerId) {
+        const followUpContent = changes['message'].to;
+        const addedByData = {
+          id: createdBy._id.toString(),
+          partyId: createdBy.partyId,
+          name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+          email: createdBy?.email || '',
+          avatar: createdBy.avatar,
+        };
+        await this.sendAddFollowUpNotification(
+          assignee,
+          updatedTicket,
+          followUpContent,
+          addedByData,
+        );
+      }
+    }
+
+    if (changes['files'] && updatedTicket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(updatedTicket.assignee.id);
+      if (assignee?.messengerId) {
+        const followUpContent = `Added ${changes['files'].to.length} file(s): ${changes['files'].to.join(', ')}`;
+        const addedByData = {
+          id: createdBy._id.toString(),
+          partyId: createdBy.partyId,
+          name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+          email: createdBy?.email || '',
+          avatar: createdBy.avatar,
+        };
+        await this.sendAddFollowUpNotification(
+          assignee,
+          updatedTicket,
+          followUpContent,
+          addedByData,
+        );
+      }
+    }
+
+    // Send notifications for changes
+    if (newAssignee && changes['assigneeId']) {
+      const assignedByData = {
+        id: createdBy._id.toString(),
+        partyId: createdBy.partyId,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+        email: createdBy?.email || '',
+        avatar: createdBy.avatar,
+      };
+      await this.sendTicketChangeAssigneeNotification(
+        newAssignee,
+        updatedTicket,
+        ticket.assignee?.name || ticket.assignee?.firstName + ' ' + ticket.assignee?.lastName,
+        assignedByData,
+      );
+    }
+
+    if (changes['status'] && updatedTicket.assignee?.id) {
+      const assignee = await this.usersService.findOne(updatedTicket.assignee.id);
+      if (assignee) {
+        const changedByData = {
+          id: createdBy._id.toString(),
+          partyId: createdBy.partyId,
+          name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+          email: createdBy?.email || '',
+          avatar: createdBy.avatar,
+        };
+        await this.sendTicketStatusChangeNotification(
+          assignee,
+          updatedTicket,
+          changes['status'].from,
+          changes['status'].to,
+          changedByData,
+        );
+      }
+    }
+
+    if (changes['priority'] && updatedTicket.assignee?.id) {
+      const assignee = await this.usersService.findOne(updatedTicket.assignee.id);
+      if (assignee) {
+        const changedByData = {
+          id: createdBy._id.toString(),
+          partyId: createdBy.partyId,
+          name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
+          email: createdBy?.email || '',
+          avatar: createdBy.avatar,
+        };
+        await this.sendTicketPriorityChangeNotification(
+          assignee,
+          updatedTicket,
+          changes['priority'].from,
+          changes['priority'].to,
+          changedByData,
+        );
+      }
+    }
 
     // Convert Mongoose document to plain object and return only necessary data
     const plainTicket = this.transformTicketResponse(updatedTicket);
@@ -510,7 +706,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticket: ticketId,
       createdBy: {
         id: createdBy._id.toString(),
-        name: createdBy.name,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
       },
       metadata: {
         filesAdded: fileCount,
@@ -557,7 +753,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticket: ticketId,
       createdBy: {
         id: createdBy._id.toString(),
-        name: createdBy.name,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
       },
       metadata: {
         changes,
@@ -643,7 +839,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticket: ticketId,
       createdBy: {
         id: createdBy._id,
-        name: createdBy.name,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
       },
       metadata: {
         logType: ActivityLogType.TICKET_UPDATED,
@@ -698,7 +894,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       ticket: ticketId,
       createdBy: {
         id: createdBy._id,
-        name: createdBy.name,
+        name: createdBy.name || createdBy.firstName + ' ' + createdBy.lastName,
       },
       metadata: {
         logType: ActivityLogType.TICKET_UPDATED,
@@ -717,6 +913,247 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
       success: true,
       message: `Successfully removed follower ${follower.name} from ticket ${ticketId}`,
     };
+  }
+
+  /**
+   * Send notification via RabbitMQ
+   */
+  private async sendNotification(notificationData: any, eventType: string): Promise<void> {
+    try {
+      this.rabbitmqService.sendToNotificationQueue(notificationData).subscribe({
+        next: (_result) => {
+          this.logger.log(`${eventType} notification sent successfully`);
+        },
+        error: (error) => {
+          this.logger.error(`Failed to send ${eventType} notification: ${error.message}`, error);
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Error creating ${eventType} notification: ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Get all notification recipients (assignee + followers) without duplicates
+   */
+  private async getNotificationRecipients(ticket: any): Promise<User[]> {
+    const recipients: User[] = [];
+    const recipientIds = new Set<string>();
+
+    // Add assignee if exists
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId && !recipientIds.has(assignee._id.toString())) {
+        recipients.push(assignee);
+        recipientIds.add(assignee._id.toString());
+      }
+    }
+
+    // Add followers
+    if (ticket?.followers && ticket.followers.length > 0) {
+      for (const followerId of ticket.followers) {
+        if (!recipientIds.has(followerId.toString())) {
+          const follower = await this.usersService.findOne(followerId);
+          if (follower?.messengerId) {
+            recipients.push(follower);
+            recipientIds.add(follower._id.toString());
+          }
+        }
+      }
+    }
+
+    return recipients;
+  }
+
+  /**
+   * Send notification to multiple recipients
+   */
+  private async sendNotificationToRecipients(
+    recipients: User[],
+    createNotificationData: (recipient: User) => any,
+    eventType: string,
+  ): Promise<void> {
+    const notificationPromises = recipients.map(async (recipient) => {
+      const notificationData = createNotificationData(recipient);
+      return this.sendNotification(notificationData, eventType);
+    });
+
+    await Promise.all(notificationPromises);
+  }
+
+  /**
+   * Send ticket assignment notification
+   */
+  private async sendTicketAssignNotification(
+    assignee: User,
+    ticket: any,
+    assignedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients (assignee + followers)
+    const recipients = await this.getNotificationRecipients(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createTicketAssignNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+            ticketType: ticket.ticketType,
+            priority: ticket.priority,
+          },
+          assignedBy,
+        }),
+      'ASSIGN_TICKET',
+    );
+  }
+
+  /**
+   * Send ticket reassignment notification
+   */
+  private async sendTicketChangeAssigneeNotification(
+    assignee: User,
+    ticket: any,
+    previousAssignee?: string,
+    assignedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients (assignee + followers)
+    const recipients = await this.getNotificationRecipients(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createTicketChangeAssigneeNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+            ticketType: ticket.ticketType,
+            priority: ticket.priority,
+          },
+          previousAssignee,
+          assignedBy,
+        }),
+      'CHANGE_TICKET_ASSIGNEE',
+    );
+  }
+
+  /**
+   * Send ticket status change notification
+   */
+  private async sendTicketStatusChangeNotification(
+    assignee: User,
+    ticket: any,
+    previousStatus: string,
+    newStatus: string,
+    changedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients (assignee + followers)
+    const recipients = await this.getNotificationRecipients(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createTicketChangeStatusNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+            ticketType: ticket.ticketType,
+            priority: ticket.priority,
+          },
+          previousStatus,
+          newStatus,
+          changedBy,
+        }),
+      'CHANGE_TICKET_STATUS',
+    );
+  }
+
+  /**
+   * Send ticket priority change notification
+   */
+  private async sendTicketPriorityChangeNotification(
+    assignee: User,
+    ticket: any,
+    previousPriority: string,
+    newPriority: string,
+    changedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients (assignee + followers)
+    const recipients = await this.getNotificationRecipients(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createTicketChangePriorityNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+            ticketType: ticket.ticketType,
+            priority: newPriority,
+          },
+          previousPriority,
+          newPriority,
+          changedBy,
+        }),
+      'CHANGE_TICKET_PRIORITY',
+    );
+  }
+
+  /**
+   * Send add follow up notification
+   */
+  private async sendAddFollowUpNotification(
+    assignee: User,
+    ticket: any,
+    followUpContent: string,
+    createdBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients (assignee + followers)
+    const recipients = await this.getNotificationRecipients(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createAddFollowUpNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          followUpContent,
+          createdBy,
+        }),
+      'ADD_FOLLOW_UP',
+    );
   }
 }
 

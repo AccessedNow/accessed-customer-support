@@ -21,6 +21,8 @@ import { ActivitiesService } from '../activities/activities.service';
 import { Activity, ActivityLogType, ActivityType } from '../activities/schemas/activity.schema';
 import { TaskStatus } from 'src/common/enums/task.enum';
 import { UsersService } from '../users/users.service';
+import { RabbitmqService } from 'src/common/services/rabbitmq.service';
+import { NotificationHelper } from 'src/common/helpers/notification.helper';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TasksService extends BaseServiceAbstract<Task> {
@@ -34,6 +36,7 @@ export class TasksService extends BaseServiceAbstract<Task> {
     private readonly ticketsService: TicketsService,
     private readonly activitiesService: ActivitiesService,
     private readonly usersService: UsersService,
+    private readonly rabbitmqService: RabbitmqService,
   ) {
     super(tasksRepository, httpService, configService, new Logger(TasksService.name));
   }
@@ -116,6 +119,18 @@ export class TasksService extends BaseServiceAbstract<Task> {
     });
 
     const newTask = await this.tasksRepository.create(taskData);
+
+    // Send notification if task has assignee
+    if (assignee?.messengerId && ticket?.assignee?.id) {
+      await this.sendAddTaskNotification(assignee, newTask, ticket, {
+        id: user.id,
+        partyId: user.partyId,
+        name: user.name || user.firstName + ' ' + user.lastName,
+        email: user.email,
+        avatar: user.avatar,
+      });
+    }
+
     return { newTask, activity };
   }
 
@@ -240,6 +255,21 @@ export class TasksService extends BaseServiceAbstract<Task> {
     });
 
     const taskUpdated = await this.tasksRepository.update(id, updateData);
+
+    // Send notification if task has assignee
+    if (taskUpdated?.assignee?.id && ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(taskUpdated.assignee.id);
+      if (assignee?.messengerId) {
+        await this.sendUpdateTaskNotification(assignee, taskUpdated, ticket, changes, {
+          id: completedByUser?._id?.toString() || user.id,
+          partyId: completedByUser?.partyId || user.partyId,
+          name: completedByUser?.name || user.name || user.firstName + ' ' + user.lastName,
+          email: completedByUser?.email || user.email,
+          avatar: completedByUser?.avatar || user.avatar,
+        });
+      }
+    }
+
     return { taskUpdated, activity };
   }
 
@@ -268,6 +298,201 @@ export class TasksService extends BaseServiceAbstract<Task> {
     });
 
     const taskDeleted = await this.tasksRepository.softDelete(id);
+
+    // Send notification if task had assignee
+    if (task?.assignee?.id) {
+      const assignee = await this.usersService.findOne(task.assignee.id);
+      if (assignee?.messengerId) {
+        const ticket = await this.ticketsService.findOneById(ticketId);
+        await this.sendDeleteTaskNotification(assignee, task, ticket, {
+          id: createdByUser?._id?.toString() || user.id,
+          partyId: createdByUser?.partyId || user.partyId,
+          name: createdByUser?.name || user.name || user.firstName + ' ' + user.lastName,
+          email: createdByUser?.email || user.email,
+          avatar: createdByUser?.avatar || user.avatar,
+        });
+      }
+    }
+
     return { taskDeleted, activity };
+  }
+
+  /**
+   * Send notification via RabbitMQ
+   */
+  private async sendNotification(notificationData: any, eventType: string): Promise<void> {
+    try {
+      this.rabbitmqService.sendToNotificationQueue(notificationData).subscribe({
+        next: (_result) => {
+          this.logger.log(`${eventType} notification sent successfully`);
+        },
+        error: (error) => {
+          this.logger.error(`Failed to send ${eventType} notification: ${error.message}`, error);
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Error creating ${eventType} notification: ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Get all notification recipients from ticket (assignee + followers) without duplicates
+   */
+  private async getNotificationRecipientsFromTicket(ticket: any): Promise<any[]> {
+    const recipients: any[] = [];
+    const recipientIds = new Set<string>();
+
+    // Add ticket assignee if exists
+    if (ticket?.assignee?.id) {
+      const assignee = await this.usersService.findOne(ticket.assignee.id);
+      if (assignee?.messengerId && !recipientIds.has(assignee._id.toString())) {
+        recipients.push(assignee);
+        recipientIds.add(assignee._id.toString());
+      }
+    }
+
+    // Add ticket followers
+    if (ticket?.followers && ticket.followers.length > 0) {
+      for (const followerId of ticket.followers) {
+        if (!recipientIds.has(followerId.toString())) {
+          const follower = await this.usersService.findOne(followerId);
+          if (follower?.messengerId) {
+            recipients.push(follower);
+            recipientIds.add(follower._id.toString());
+          }
+        }
+      }
+    }
+
+    return recipients;
+  }
+
+  /**
+   * Send notification to multiple recipients
+   */
+  private async sendNotificationToRecipients(
+    recipients: any[],
+    createNotificationData: (recipient: any) => any,
+    eventType: string,
+  ): Promise<void> {
+    const notificationPromises = recipients.map(async (recipient) => {
+      const notificationData = createNotificationData(recipient);
+      return this.sendNotification(notificationData, eventType);
+    });
+
+    await Promise.all(notificationPromises);
+  }
+
+  /**
+   * Send add task notification
+   */
+  private async sendAddTaskNotification(
+    assignee: any,
+    task: any,
+    ticket: any,
+    createdBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createAddTaskNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          task: {
+            id: task._id.toString(),
+            title: task.title,
+            ticketId: task.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          createdBy,
+        }),
+      'ADD_TASK',
+    );
+  }
+
+  /**
+   * Send update task notification
+   */
+  private async sendUpdateTaskNotification(
+    assignee: any,
+    task: any,
+    ticket: any,
+    changes: Record<string, { from: any; to: any }>,
+    updatedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createUpdateTaskNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          task: {
+            id: task._id.toString(),
+            title: task.title,
+            ticketId: task.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          changes,
+          updatedBy,
+        }),
+      'UPDATE_TASK',
+    );
+  }
+
+  /**
+   * Send delete task notification
+   */
+  private async sendDeleteTaskNotification(
+    assignee: any,
+    task: any,
+    ticket: any,
+    deletedBy?: any,
+  ): Promise<void> {
+    if (!assignee?.messengerId) return;
+
+    // Get all recipients from ticket (assignee + followers)
+    const recipients = await this.getNotificationRecipientsFromTicket(ticket);
+
+    await this.sendNotificationToRecipients(
+      recipients,
+      (recipient) =>
+        NotificationHelper.createDeleteTaskNotification({
+          messengerId: recipient.messengerId,
+          assigneeName: recipient.name,
+          assigneePartyId: recipient.partyId,
+          task: {
+            id: task._id.toString(),
+            title: task.title,
+            ticketId: task.ticket.toString(),
+          },
+          ticket: {
+            id: ticket._id.toString(),
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+          },
+          deletedBy,
+        }),
+      'DELETE_TASK',
+    );
   }
 }
