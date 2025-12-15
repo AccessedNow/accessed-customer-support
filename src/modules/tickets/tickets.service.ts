@@ -379,6 +379,25 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     }
 
     const plainTicket = this.transformTicketResponse(ticket);
+
+    if (plainTicket.customer?.id) {
+      try {
+        const fullCustomer = await this.customersService.findOne(plainTicket.customer.id);
+        if (fullCustomer) {
+          const customerObj = fullCustomer['toJSON']
+            ? fullCustomer['toJSON']()
+            : { ...fullCustomer };
+          const { _id, ...customerData } = customerObj;
+          plainTicket.customer = {
+            ...customerData,
+            id: _id?.toString(),
+          };
+        }
+      } catch (error) {
+        this.logger.warn(`Could not fetch full customer details for ID ${plainTicket.customer.id}`);
+      }
+    }
+
     const collections = ['activities', 'tasks', 'notes', 'files'];
     const displayLimit = 3;
 
@@ -1156,4 +1175,3 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     );
   }
 }
-
