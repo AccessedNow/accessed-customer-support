@@ -95,11 +95,12 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     const sla = SLA_CONFIG[priority];
     const firstResponseDue = new Date(new Date().getTime() + sla.firstResponse * 60 * 60 * 1000);
     const resolutionDue = new Date(new Date().getTime() + sla.resolution * 60 * 60 * 1000);
-    const [assignee, followersList, sequence] = await Promise.all([
+    const [assigneeResult, followersList, sequence] = await Promise.all([
       this.handleAssignee(assigneeId, ticketType),
       this.handleFollowers(followers),
       this.ticketCounterRepository.getNextSequence(prefix),
     ]);
+    const { assignee, users: ticketTypeUsers } = assigneeResult;
     const ticketId = `#${prefix}-${sequence.toString().padStart(6, '0')}`;
     if (createTicketDto.meta?.invoice && ticketType === TICKET_TYPE.BILLING) {
       const paymentServiceUrl = this.configService.get<string>('PAYMENT_SERVICE_URL');
@@ -208,36 +209,92 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
         'Content-Type': 'application/json',
       },
     });
-    // await messageClient.post('/sys/mails/send', {
-    //   type: 'SUPPORT_TICKET_NOTIFICATION',
-    //   dataSupportTicketNotification: {
-    //     ticketId: ticketId,
-    //     customerName: customer.name,
-    //     customerEmail: customer.email,
-    //     priorityLevel: priority.toUpperCase(),
-    //     priorityLevelLower: priority.toLowerCase(),
-    //     ticketSubject: createTicketDto.subject,
-    //     ticketCategory: ticketType,
-    //     createdDate: new Date().toISOString().split('T')[0],
-    //     ticketStatus: TicketStatus.OPEN,
-    //     ticketDescription: createTicketDto.message,
-    //     viewTicketUrl: ticket._id.toString(),
-    //   },
-    // });
-    // if (assignee?.messengerId && customer?.messengerId) {
-    //   const { data: conversation } = await messageClient.post('/sys/conversations', {
-    //     type: 'SUPPORT',
-    //     members: [assignee?.messengerId, customer?.messengerId],
-    //     title: '',
-    //     meta: {
-    //       ticketId: ticket._id.toString(),
-    //       customerId: customer.customerId,
-    //     },
-    //   });
-    //   if (conversation?.data) {
-    //     ticket.meta.conversationId = conversation.data._id;
-    //   }
-    // }
+    await _messageClient.post('/sys/mails', {
+      from: { name: 'Accessed System', email: 'noreply@accessed.co' },
+      to: [
+        {
+          email: 'viet.doan@accessed.co',
+          name: 'Viet Doan',
+        },
+        {
+          email: 'hao.ha@accessed.co',
+          name: 'Hao Ha',
+        },
+        {
+          name: 'Hien PO',
+          email: 'podevqa03@gmail.com',
+        },
+        {
+          email: 'qa@accessed.co',
+          name: 'Ho Tam',
+        },
+        {
+          email: 'thanh.phan@accessed.co',
+          name: 'Thanh Phan',
+        },
+        {
+          email: 'duy.nguyen@accessed.co',
+          name: 'Minh Duy',
+        },
+        {
+          email: 'ban.trang@accessed.co',
+          name: 'Ban Trang',
+        },
+      ],
+      cc: [],
+      bcc: [],
+      subject: '',
+      message: '',
+      template: 'sys_support_ticket_notification',
+      isHtml: true,
+      emailType: 'DIRECT',
+      type: 'SUPPORT_TICKET_NOTIFICATION',
+      meta: {
+        ticketId: ticketId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        priorityLevel: priority.toUpperCase(),
+        priorityLevelLower: priority.toLowerCase(),
+        ticketSubject: createTicketDto.subject,
+        ticketCategory: ticketType,
+        createdDate: new Date().toISOString().split('T')[0],
+        ticketStatus: TicketStatus.OPEN,
+        ticketDescription: createTicketDto.message,
+        viewTicketUrl: ticket._id.toString(),
+      },
+      whenToSend: new Date().toISOString(),
+      threadId: '',
+    });
+
+    // Get all users with messengerId from ticket type users
+    const usersWithMessengerId: string[] = [];
+    if (ticketTypeUsers && ticketTypeUsers.length > 0) {
+      for (const user of ticketTypeUsers) {
+        if (user?.messengerId && !usersWithMessengerId.includes(user.messengerId)) {
+          usersWithMessengerId.push(user.messengerId);
+        }
+      }
+    }
+
+    if (usersWithMessengerId.length > 0 && customer?.messengerId) {
+      const members = [...usersWithMessengerId, customer.messengerId];
+      try {
+        const { data: conversation } = await _messageClient.post('/sys/conversations', {
+          type: 'SUPPORT',
+          members,
+          title: '',
+          meta: {
+            ticketId: ticket._id.toString(),
+            customerId: customer.customerId,
+          },
+        });
+        if (conversation?.data) {
+          ticket.meta.conversationId = conversation.data._id;
+        }
+      } catch (error) {
+        this.logger.error(`Failed to create conversation: ${error.message}`, error);
+      }
+    }
 
     // Send notification if ticket has assignee
     if (assignee) {
@@ -263,24 +320,31 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
     return ticket;
   }
 
-  private async handleAssignee(assigneeId?: string, type?: string): Promise<User | null> {
+  private async handleAssignee(
+    assigneeId?: string,
+    type?: string,
+  ): Promise<{ assignee: User | null; users: User[] }> {
     if (assigneeId) {
       const assignee = await this.usersService.findUserFromPartyService(assigneeId);
       if (!assignee) {
         throw new NotFoundException(`Assignee with ID ${assigneeId} not found`);
       }
-      return assignee;
+      // Get all users for this type to include in conversation
+      const { content: users } = await this.usersService.findAll({
+        components: { $in: [type] },
+      });
+      return { assignee, users };
     }
 
     const { content: users } = await this.usersService.findAll({
       components: { $in: [type] },
     });
     if (users.length === 0) {
-      return null;
+      return { assignee: null, users: [] };
     }
 
     if (users.length === 1) {
-      return users[0];
+      return { assignee: users[0], users };
     }
 
     const userTicketCounts = await Promise.all(
@@ -300,7 +364,7 @@ export class TicketsService extends BaseServiceAbstract<Ticket> {
 
     const selectedUser = userTicketCounts[0].user;
 
-    return selectedUser;
+    return { assignee: selectedUser, users };
   }
 
   private async handleFollowers(followerIds?: string[]): Promise<User[]> {
